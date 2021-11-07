@@ -1,0 +1,168 @@
+country,countrycode,country_i,wb_region,wb_region_i,wb_income_group,wb_inc_group_i,cia_rich_poor_i,highest10_pop_i,highest10_PPPgdp_i,trade_bloc,trade_bloc_i,US,China
+Albania,ALB,1,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Angola,AGO,2,Sub-Saharan Africa,7,Upper middle income,3,2,0,0,NONE,0,0,0
+Antigua and Barbuda,ATG,3,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,CARICOM,1,0,0
+Argentina,ARG,4,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,MERCOSUR,2,0,0
+Armenia,ARM,5,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+Australia,AUS,6,East Asia & Pacific,1,High income: OECD,5,1,0,0,NONE,0,0,0
+Austria,AUT,7,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Azerbaijan,AZE,8,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Bahamas,BHS,9,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,CARICOM,1,0,0
+Bahrain,BHR,10,Middle East & North Africa,4,High income: nonOECD,4,1,0,0,GCC,4,0,0
+Bangladesh,BGD,11,South Asia,6,Lower middle income,2,2,1,0,APTA,5,0,0
+Barbados,BRB,12,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,CARICOM,1,0,0
+Belarus,BLR,13,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Belgium,BEL,14,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Belize,BLZ,15,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+Benin,BEN,16,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Bermuda,BMU,17,North America,5,High income: nonOECD,4,1,0,0,NONE,0,0,0
+Bhutan,BTN,18,South Asia,6,Lower middle income,2,2,0,0,NONE,0,0,0
+Bolivia,BOL,19,Latin America & Caribbean,3,Lower middle income,2,2,0,0,NONE,0,0,0
+Bosnia and Herzegovina,BIH,20,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Botswana,BWA,21,Sub-Saharan Africa,7,Upper middle income,3,2,0,0,SACU,9,0,0
+Brazil,BRA,22,Latin America & Caribbean,3,Upper middle income,3,2,1,1,MERCOSUR,2,0,0
+Brunei Darussalam,BRN,23,East Asia & Pacific,1,High income: nonOECD,4,1,0,0,NONE,0,0,0
+Bulgaria,BGR,24,Europe & Central Asia,2,Upper middle income,3,2,0,0,EEA,3,0,0
+Burkina Faso,BFA,25,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Burundi,BDI,26,Sub-Saharan Africa,7,Low income,1,2,0,0,EAC,7,0,0
+Cape Verde,CPV,27,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Cambodia,KHM,28,East Asia & Pacific,1,Low income,1,2,0,0,NONE,0,0,0
+Cameroon,CMR,29,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Canada,CAN,30,North America,5,High income: OECD,5,1,0,0,NAFTA,8,0,0
+Central African Republic,CAF,31,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Chad,TCD,32,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Chile,CHL,33,Latin America & Caribbean,3,High income: OECD,5,2,0,0,NONE,0,0,0
+"China, People's Republic of",CHN,34,East Asia & Pacific,1,Upper middle income,3,2,1,1,APTA,5,0,1
+Colombia,COL,35,Latin America & Caribbean,3,Upper middle income,3,2,0,0,NONE,0,0,0
+Comoros,COM,36,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Democratic Republic of the Congo,COD,37,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Congo,COG,38,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Costa Rica,CRI,39,Latin America & Caribbean,3,Upper middle income,3,2,0,0,NONE,0,0,0
+C™te d'Ivoire,CIV,40,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,ECOWAS,6,0,0
+Croatia,HRV,41,Europe & Central Asia,2,High income: nonOECD,4,2,0,0,EEA,3,0,0
+Cyprus,CYP,42,Europe & Central Asia,2,High income: nonOECD,4,2,0,0,EEA,3,0,0
+Czech Republic,CZE,43,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Denmark,DNK,44,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Djibouti,DJI,45,Middle East & North Africa,4,Lower middle income,2,2,0,0,NONE,0,0,0
+Dominica,DMA,46,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+Dominican Republic,DOM,47,Latin America & Caribbean,3,Upper middle income,3,2,0,0,NONE,0,0,0
+Ecuador,ECU,48,Latin America & Caribbean,3,Upper middle income,3,2,0,0,NONE,0,0,0
+Egypt,EGY,49,Middle East & North Africa,4,Lower middle income,2,2,0,0,NONE,0,0,0
+El Salvador,SLV,50,Latin America & Caribbean,3,Lower middle income,2,2,0,0,NONE,0,0,0
+Equatorial Guinea,GNQ,51,Sub-Saharan Africa,7,High income: nonOECD,4,2,0,0,NONE,0,0,0
+Estonia,EST,52,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Ethiopia,ETH,53,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Fiji,FJI,54,East Asia & Pacific,1,Upper middle income,3,2,0,0,NONE,0,0,0
+Finland,FIN,55,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+France,FRA,56,Europe & Central Asia,2,High income: OECD,5,1,0,1,EEA,3,0,0
+Gabon,GAB,57,Sub-Saharan Africa,7,Upper middle income,3,2,0,0,NONE,0,0,0
+Gambia,GMB,58,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Georgia,GEO,59,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+Germany,DEU,60,Europe & Central Asia,2,High income: OECD,5,1,0,1,EEA,3,0,0
+Ghana,GHA,61,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,ECOWAS,6,0,0
+Greece,GRC,62,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Grenada,GRD,63,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+Guatemala,GTM,64,Latin America & Caribbean,3,Lower middle income,2,2,0,0,NONE,0,0,0
+Guinea,GIN,65,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Guinea-Bissau,GNB,66,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Honduras,HND,67,Latin America & Caribbean,3,Lower middle income,2,2,0,0,NONE,0,0,0
+China: Hong Kong SAR,HKG,68,East Asia & Pacific,1,High income: nonOECD,4,1,0,0,NONE,0,0,0
+Hungary,HUN,69,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Iceland,ISL,70,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+India,IND,71,South Asia,6,Lower middle income,2,2,1,1,APTA,5,0,0
+Indonesia,IDN,72,East Asia & Pacific,1,Lower middle income,2,2,1,1,NONE,0,0,0
+Iran (Islamic Republic of),IRN,73,Middle East & North Africa,4,Upper middle income,3,2,0,0,NONE,0,0,0
+Iraq,IRQ,74,Middle East & North Africa,4,Upper middle income,3,2,0,0,NONE,0,0,0
+Ireland,IRL,75,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Israel,ISR,76,Middle East & North Africa,4,High income: OECD,5,1,0,0,NONE,0,0,0
+Italy,ITA,77,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Jamaica,JAM,78,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+Japan,JPN,79,East Asia & Pacific,1,High income: OECD,5,1,0,1,NONE,0,0,0
+Jordan,JOR,80,Middle East & North Africa,4,Upper middle income,3,2,0,0,NONE,0,0,0
+Kazakhstan,KAZ,81,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Kenya,KEN,82,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,EAC,7,0,0
+Republic of Korea,KOR,83,East Asia & Pacific,1,High income: OECD,5,1,0,0,APTA,5,0,0
+Kuwait,KWT,84,Middle East & North Africa,4,High income: nonOECD,4,1,0,0,GCC,4,0,0
+Kyrgyzstan,KGZ,85,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+Lao People's Democratic Republic,LAO,86,East Asia & Pacific,1,Lower middle income,2,2,0,0,APTA,5,0,0
+Latvia,LVA,87,Europe & Central Asia,2,High income: nonOECD,4,2,0,0,EEA,3,0,0
+Lebanon,LBN,88,Middle East & North Africa,4,Upper middle income,3,2,0,0,NONE,0,0,0
+Lesotho,LSO,89,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,SACU,9,0,0
+Liberia,LBR,90,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Lithuania,LTU,91,Europe & Central Asia,2,High income: nonOECD,4,2,0,0,EEA,3,0,0
+Luxembourg,LUX,92,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+China: Macao SAR,MAC,93,East Asia & Pacific,1,High income: nonOECD,4,1,0,0,NONE,0,0,0
+The Former Yugoslav Republic of Macedonia,MKD,94,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Madagascar,MDG,95,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Malawi,MWI,96,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Malaysia,MYS,97,East Asia & Pacific,1,Upper middle income,3,2,0,0,NONE,0,0,0
+Maldives,MDV,98,South Asia,6,Upper middle income,3,2,0,0,NONE,0,0,0
+Mali,MLI,99,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Malta,MLT,100,Middle East & North Africa,4,High income: nonOECD,4,1,0,0,EEA,3,0,0
+Mauritania,MRT,101,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Mauritius,MUS,102,Sub-Saharan Africa,7,Upper middle income,3,2,0,0,NONE,0,0,0
+Mexico,MEX,103,Latin America & Caribbean,3,Upper middle income,3,2,1,0,NAFTA,8,0,0
+Republic of Moldova,MDA,104,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+Mongolia,MNG,105,East Asia & Pacific,1,Upper middle income,3,2,0,0,APTA,5,0,0
+Montenegro,MNE,106,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Morocco,MAR,107,Middle East & North Africa,4,Lower middle income,2,2,0,0,NONE,0,0,0
+Mozambique,MOZ,108,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
+Namibia,NAM,109,Sub-Saharan Africa,7,Upper middle income,3,2,0,0,SACU,9,0,0
+Nepal,NPL,110,South Asia,6,Low income,1,2,0,0,NONE,0,0,0
+Netherlands,NLD,111,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+New Zealand,NZL,112,East Asia & Pacific,1,High income: OECD,5,1,0,0,NONE,0,0,0
+Niger,NER,113,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Nigeria,NGA,114,Sub-Saharan Africa,7,Lower middle income,2,2,1,0,ECOWAS,6,0,0
+Norway,NOR,115,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Oman,OMN,116,Middle East & North Africa,4,High income: nonOECD,4,1,0,0,GCC,4,0,0
+Pakistan,PAK,117,South Asia,6,Lower middle income,2,2,1,0,NONE,0,0,0
+Panama,PAN,118,Latin America & Caribbean,3,Upper middle income,3,2,0,0,NONE,0,0,0
+Paraguay,PRY,119,Latin America & Caribbean,3,Upper middle income,3,2,0,0,MERCOSUR,2,0,0
+Peru,PER,120,Latin America & Caribbean,3,Upper middle income,3,2,0,0,NONE,0,0,0
+Philippines,PHL,121,East Asia & Pacific,1,Lower middle income,2,2,0,0,NONE,0,0,0
+Poland,POL,122,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Portugal,PRT,123,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Qatar,QAT,124,Middle East & North Africa,4,High income: nonOECD,4,1,0,0,GCC,4,0,0
+Romania,ROU,125,Europe & Central Asia,2,Upper middle income,3,2,0,0,EEA,3,0,0
+Russian Federation,RUS,126,Europe & Central Asia,2,High income: nonOECD,4,2,1,1,NONE,0,0,0
+Rwanda,RWA,127,Sub-Saharan Africa,7,Low income,1,2,0,0,EAC,7,0,0
+Sao Tome and Principe,STP,128,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Saudi Arabia,SAU,129,Middle East & North Africa,4,High income: nonOECD,4,1,0,0,GCC,4,0,0
+Senegal,SEN,130,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,ECOWAS,6,0,0
+Serbia,SRB,131,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Sierra Leone,SLE,132,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Singapore,SGP,133,East Asia & Pacific,1,High income: nonOECD,4,1,0,0,NONE,0,0,0
+Slovakia,SVK,134,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+Slovenia,SVN,135,Europe & Central Asia,2,High income: OECD,5,2,0,0,EEA,3,0,0
+South Africa,ZAF,136,Sub-Saharan Africa,7,Upper middle income,3,2,0,0,SACU,9,0,0
+Spain,ESP,137,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Sri Lanka,LKA,138,South Asia,6,Lower middle income,2,2,0,0,APTA,5,0,0
+Saint Kitts and Nevis,KNA,139,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,CARICOM,1,0,0
+Saint Lucia,LCA,140,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+St. Vincent and the Grenadines,VCT,141,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+Sudan,SDN,142,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Suriname,SUR,143,Latin America & Caribbean,3,Upper middle income,3,2,0,0,CARICOM,1,0,0
+Swaziland,SWZ,144,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Sweden,SWE,145,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Switzerland,CHE,146,Europe & Central Asia,2,High income: OECD,5,1,0,0,EEA,3,0,0
+Syrian Arab Republic,SYR,147,Middle East & North Africa,4,Lower middle income,2,2,0,0,NONE,0,0,0
+Taiwan,TWN,148,East Asia & Pacific,1,High income: nonOECD,4,1,0,0,NONE,0,0,0
+Tajikistan,TJK,149,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+United Republic of Tanzania: Mainland,TZA,150,Sub-Saharan Africa,7,Low income,1,2,0,0,EAC,7,0,0
+Thailand,THA,151,East Asia & Pacific,1,Upper middle income,3,2,0,0,NONE,0,0,0
+Togo,TGO,152,Sub-Saharan Africa,7,Low income,1,2,0,0,ECOWAS,6,0,0
+Trinidad and Tobago,TTO,153,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,CARICOM,1,0,0
+Tunisia,TUN,154,Middle East & North Africa,4,Upper middle income,3,2,0,0,NONE,0,0,0
+Turkey,TUR,155,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Turkmenistan,TKM,156,Europe & Central Asia,2,Upper middle income,3,2,0,0,NONE,0,0,0
+Uganda,UGA,157,Sub-Saharan Africa,7,Low income,1,2,0,0,EAC,7,0,0
+Ukraine,UKR,158,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+United Kingdom,GBR,159,Europe & Central Asia,2,High income: OECD,5,1,0,1,EEA,3,0,0
+United States,USA,160,North America,5,High income: OECD,5,1,1,1,NAFTA,8,1,0
+Uruguay,URY,161,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,MERCOSUR,2,0,0
+Uzbekistan,UZB,162,Europe & Central Asia,2,Lower middle income,2,2,0,0,NONE,0,0,0
+Venezuela,VEN,163,Latin America & Caribbean,3,High income: nonOECD,4,2,0,0,NONE,0,0,0
+Viet Nam,VNM,164,East Asia & Pacific,1,Lower middle income,2,2,0,0,NONE,0,0,0
+Yemen,YEM,165,Middle East & North Africa,4,Lower middle income,2,2,0,0,NONE,0,0,0
+Zambia,ZMB,166,Sub-Saharan Africa,7,Lower middle income,2,2,0,0,NONE,0,0,0
+Zimbabwe,ZWE,167,Sub-Saharan Africa,7,Low income,1,2,0,0,NONE,0,0,0
