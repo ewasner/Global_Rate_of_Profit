@@ -931,9 +931,9 @@ server <- function(input, output) {
   
   ## Create df with average annual growth rates for OCR, PS, and ROP
   data.WIOT.Country.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.WIOT.Country()$OCR),
-               gr_PS = avg_GR(data.WIOT.Country()$PS1),
-               gr_ROP=avg_GR(data.WIOT.Country()$ROP1))
+    data.frame(gr_OCR = avg_GR(data.WIOT.Country()[with(data.WIOT.Country(),order(year)),]$OCR),
+               gr_PS = avg_GR(data.WIOT.Country()[with(data.WIOT.Country(),order(year)),]$PS1),
+               gr_ROP=avg_GR(data.WIOT.Country()[with(data.WIOT.Country(),order(year)),]$ROP1))
   })
   
   WIOT_CountryPlot1 <- reactive({
