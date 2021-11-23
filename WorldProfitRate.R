@@ -421,7 +421,7 @@ server <- function(input, output) {
                          " Jesus Lara Jauregui ",
                          HTML(paste0("(",a("jlarajauregu@umass.edu",href="mailto:@jlarajauregu@umass.edu"),"),")),
                          " Julio Huato ",
-                         HTML(paste0("(",a("juliohuato@gmail.com",href="mailto:@juliohuato@gmail.com"),"),")),
+                         HTML(paste0("(",a("jhuato@sfc.edu",href="mailto:@jhuato@sfc.edu"),"),")),
                          " and Deepankar Basu ",
                          HTML(paste0("(",a("dbasu@econs.umass.edu",href="mailto:@dbasu@econs.umass.edu"),")."))) 
   
