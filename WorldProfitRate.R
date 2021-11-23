@@ -12,25 +12,24 @@ rm(list = ls())
 ## Needs to be changed for server
 ## setwd("I:/Evan/Documents/Umass/RA - Deepankar Fall 2021/Global Rate of Profit/Global_Rate_of_Profit")
 
-
-###################### Collect & Manipulate Data From PWT Spreadsheet ######################
+###################### Collect & Manipulate Data From EPWT Spreadsheet ######################
 ## Read from .csv file
-PWT <- read_excel("EPWT 7.0 Preliminary.xlsx",
+EPWT <- read_excel("EPWT 7.0 Preliminary.xlsx",
                   sheet = "EPWT7.0")
 class <- read.csv("dh_country_class.csv") # For World Bank Income Group Categorization
 
-## Remove na values from PWT, select relevant variables, and
-## calculate Profit share (PS), Output-Capital Ratio (OCR), and Rate of Profit (r)
-PWT <- na.omit(PWT %>% select(countrycode, country, year, LabShare, rhonatcur, Kppp2017, XGDPppp2017) %>%
+## Remove na values from EPWT, select relevant variables, and
+## calculate Profit share (PS), Output-Capital Ratio (OCR), and Rate of Profit (ROP)
+EPWT <- na.omit(EPWT %>% select(countrycode, country, year, LabShare, rhonatcur, Kppp2017, XGDPppp2017) %>%
                  filter(year > 1949)) %>%
   rename(Y=XGDPppp2017, K=Kppp2017, OCR=rhonatcur) %>%
-  mutate(PS = 1-LabShare, r = 100 * PS * OCR)
+  mutate(PS = 1-LabShare, ROP = 100 * PS * OCR)
 
-## Merge PWT with WB income group categories
-PWT <- merge(PWT, class %>% select(countrycode,wb_income_group), by="countrycode", all.x=TRUE)
+## Merge EPWT with WB income group categories
+EPWT <- merge(EPWT, class %>% select(countrycode,wb_income_group), by="countrycode", all.x=TRUE)
 
 
-###################### Collect & Manipulate Data From WIOT Spreadsheet ######################
+###################### Collect & Manipulate Data From WIOD Spreadsheet ######################
 
 ### List of variables and description
 
@@ -66,8 +65,8 @@ PWT <- merge(PWT, class %>% select(countrycode,wb_income_group), by="countrycode
 ### Rate of surplus value= CAP/LAB
 ### Organic composition of capital= K/LAB
 
-## Import Socioeconomic accounts
-WIOT <- merge(read_excel("WIOD_SEA_Nov16.xlsx", 
+## Import Socioeconomic accounts, include extended country names from Notes sheet
+WIOD <- merge(read_excel("WIOD_SEA_Nov16.xlsx", 
                    sheet = "DATA") %>% suppressWarnings(),
               read_excel("WIOD_SEA_Nov16.xlsx", 
                          sheet = "Notes",
@@ -75,12 +74,29 @@ WIOT <- merge(read_excel("WIOD_SEA_Nov16.xlsx",
               by.x="country",
               by.y="Acronym")
 
-## Get it in tidy format 
-WIOT <- WIOT %>% pivot_longer("2000":"2014","year", values_to="value")
-WIOT <- WIOT %>% pivot_wider(names_from = 'variable')
+## Change name for United Kingdom to be consistent with EPWT
+WIOD[WIOD$country=="GBR","Name"] <- "United Kingdom"
+
+## Get rid of Taiwan, since there is no PPP data available
+WIOD <- WIOD[WIOD$country!="TWN",]
+
+## Melt year columns into one
+WIOD <- WIOD %>% pivot_longer("2000":"2014","year", values_to="value")
+
+## Import PPP data, merge into WIOD, convert values, and drop the PPP column
+OECD_PPP <- read.csv("OECD_PPP.csv", fileEncoding = 'UTF-8-BOM') %>%
+  select(LOCATION,TIME,Value) %>%
+  rename(country=LOCATION,year=TIME,PPP=Value)
+WIOD <- merge(WIOD, 
+              OECD_PPP) %>%
+  mutate(value = value / PPP) %>%
+  select(-PPP)
+
+## Unmelt variable column into several columns
+WIOD <- WIOD %>% pivot_wider(names_from = 'variable')
 
 ## Calculate relevant variables at the industry level:
-WIOT <- WIOT %>% mutate(OCR=VA/K,
+WIOD <- WIOD %>% mutate(OCR=VA/K,
                         PS1=CAP/VA,
                         PS2=(VA-LAB)/VA,
                         ROP1=OCR*PS1,
@@ -89,6 +105,11 @@ WIOT <- WIOT %>% mutate(OCR=VA/K,
                         r.surplus.1=CAP/LAB,
                         r.surplus.2=(VA-LAB)/LAB,
                         org.comp=K/LAB)
+
+## Merge WIOD with WB income group categories
+WIOD <- merge(WIOD, 
+              class %>% select(countrycode,wb_income_group), 
+              by.x="country", by.y="countrycode", all.x=TRUE)
 
 
 ###################### Define Necessary Functions ########################################## 
@@ -115,7 +136,7 @@ avg_GR <- function(x){
 ######################### Shiny Code ####################################
 
 ## List used to generate plot subtitle
-ui.EPWT_GlobalPlot1Subtitle <- list(All = "Using all available data observations",
+ui.CL_GlobalPlot1Subtitle <- list(All = "Using all available data observations",
                                LimitCountries = "Using data from countries with observations in all selected years")
 
 ## This list is used for geom_smooth() function arguments for a trend line for the main plot 
@@ -125,666 +146,266 @@ ui.trendLineList <- list("None" = c("",""),
                          "Quadratic" = c("lm", "y~poly(x,2)"),
                          "Cubic" = c("lm", "y~poly(x,3)"))
 
+## Table which displays the countries within each data source
+ui.CL_CountriesTable <- data.frame(Country = sort(unique(EPWT$country))) %>%
+  mutate(EPWT = Country %in% unique(EPWT$country),
+         WIOD = Country %in% unique(WIOD$Name)) %>%
+  mutate_all(list(~ str_replace(.,"TRUE","&#10004;"))) %>%
+  mutate_all(list(~ str_replace(.,"FALSE","	&#10060;")))
+
+# ## Generate list of industries with descriptions
+# ui.IL_IndustriesList.df <- unique(WIOD[,c("code","description")])[order(unique(WIOD$description)),]
+# ui.IL_IndustriesList <- as.list(ui.IL_IndustriesList.df$code)
+# names(ui.IL_IndustriesList) <- ui.IL_IndustriesList.df$description
+
+############### UI #################
+
 ## Create UI
 ui <- dashboardPage(
   dashboardHeader(title = "Marxian Rates of Profit",
                   titleWidth = 250),
   dashboardSidebar(
     sidebarMenu(
-      menuItem("Extended World Penn Table", tabName="EPWT"),
-      menuItem("World Input-Output Data", tabName="WIOT")
-    )),
+      menuItem("Country-Level", tabName="CL"),
+      menuItem("Industry-Level", tabName="IL")
+    )
+  ),
   dashboardBody(
     tabItems(
       
-      ############################################# EPWT #################################
+      ############################################# Country-Level #################################
       
-      tabItem(tabName="EPWT",
-              tabsetPanel(
+      tabItem(tabName="CL",
+              sidebarLayout(
+                sidebarPanel(
+                  
+                  selectInput(inputId = "CL_dataSource",
+                              label = "Data Source:",
+                              choices = c("EPWT",
+                                          "WIOD")),
+                  
+                  airDatepickerInput("CL_dateStart",
+                                     label = "Start Year",
+                                     value = "1950-01-02",
+                                     maxDate = Sys.Date()-365,
+                                     minDate = "1950-01-02",
+                                     view = "years", #editing what the popup calendar shows when it opens
+                                     minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
+                                     dateFormat = "yyyy"
+                  ),
+                  
+                  airDatepickerInput("CL_dateEnd",
+                                     label = "End Year",
+                                     value = Sys.Date()-365,
+                                     maxDate = Sys.Date()-365,
+                                     minDate = "1950-01-02",
+                                     view = "years", #editing what the popup calendar shows when it opens
+                                     minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
+                                     dateFormat = "yyyy"
+                  ),
+                  
+                  uiOutput("CL_conditionalPanel1"),
+                  
+                  uiOutput("CL_conditionalPanel2"),
+                  
+                  selectInput(inputId = "CL_trendLine", ## Choice of Trend Line for ROP graph
+                              label = "Trend Line:",
+                              c("None" = "None",
+                                "Linear Trend" = "Linear",
+                                "Loess Trend" = "Loess",
+                                "Quadratic Trend" = "Quadratic",
+                                "Cubic Trend" = "Cubic")),
+                  
+                  selectInput(inputId = "CL_plot2Type",
+                              label = "Display ROP Decomposition as:",
+                              choices = c("Histogram of Average Rates" = "histogram",
+                                          "Time-Series" = "timeSeries")),
+                  
+                  wellPanel(
+                    selectInput("CL_fformat", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
+                    uiOutput("CL_downloadData")
+                  )
+                ), ## sideBarPanel
                 
-                ###################### Global Profit Rate ########################
-                
-                tabPanel("Global",
-                         sidebarLayout(
-                           sidebarPanel(
-                             airDatepickerInput("EPWT_dateStartGlobal",
-                                                label = "Start Year",
-                                                value = "1950-01-02",
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "1950-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             airDatepickerInput("EPWT_dateEndGlobal",
-                                                label = "End Year",
-                                                value = Sys.Date()-365,
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "1950-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             selectInput(inputId = "EPWT_globalAggregate", ## Choose method for aggregating data
-                                         label = "Choose Method to compute Global Aggregates:",
-                                         choices = c("Use all available data observations" = "All",
-                                                     "Use only countries with data observations in all selected years" = "LimitCountries")),
-                             
-                             selectInput(inputId = "EPWT_trendLineGlobal", ## Choice of Trend Line for ROP graph
-                                         label = "Choose a trend line to display:",
-                                         c("None" = "None",
-                                           "Linear Trend" = "Linear",
-                                           "Loess Trend" = "Loess",
-                                           "Quadratic Trend" = "Quadratic",
-                                           "Cubic Trend" = "Cubic")),
-                             
-                             wellPanel(
-                               selectInput("EPWT_fformatGlobal", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
-                               downloadButton("EPWT_downloadDataGlobal", "Download Data"),
-                               downloadButton("EPWT_downloadExplanationFileGlobal", "More Information")
-                             )),
-                           
-                           mainPanel(
-                             plotOutput("EPWT_plotGlobal1"),
-                             div(downloadButton("EPWT_downloadPlot1Global", "Download Plot 1"),style="float:right"),
+                mainPanel(
+                  tabsetPanel(
+                    
+                    ###################### Global Profit Rate ########################
+                    
+                    tabPanel("Global",
+                             plotOutput("CL_plotGlobal1"),
+                             div(downloadButton("CL_downloadPlot1Global", "Download Plot 1"),style="float:right"),
                              br(),
                              br(),
-                             plotOutput("EPWT_plotGlobal2"),
-                             div(downloadButton("EPWT_downloadPlot2Global", "Download Plot 2"),style="float:right"),
+                             plotOutput("CL_plotGlobal2"),
+                             div(downloadButton("CL_downloadPlot2Global", "Download Plot 2"),style="float:right")
+                    ), ## tabPanel (Global)
+                    
+                    ###################### Group Profit Rate ########################
+                    
+                    tabPanel("By Group",
+                             plotOutput("CL_plotGroup1"),
+                             div(downloadButton("CL_downloadPlot1Group", "Download Plot 1"),style="float:right"),
                              br(),
                              br(),
-                             uiOutput("EPWT_textGlobal")
-                           ))),
-                
-                ###################### Group Profit Rate ########################
-                
-                tabPanel("By Group",
-                         sidebarLayout(
-                           sidebarPanel(
-                             airDatepickerInput("EPWT_dateStartGroup",
-                                                label = "Start Year",
-                                                value = "1950-01-02",
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "1950-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             airDatepickerInput("EPWT_dateEndGroup",
-                                                label = "End Year",
-                                                value = Sys.Date()-365,
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "1950-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             selectInput(inputId = "EPWT_group", ## Income Group
-                                         label = "Choose Income Group:",
-                                         choices = sort(unique(PWT$wb_income_group)[2:6]), # First value is NA
-                                         selected = "High income: OECD"),
-                             
-                             selectInput(inputId = "EPWT_groupAggregate", ## Choose method for aggregating data
-                                         label = "Choose Method to compute Group Aggregates:",
-                                         choices = c("Use all available data observations" = "All",
-                                                     "Use only countries with data observations in all selected years" = "LimitCountries")),
-                             
-                             selectInput(inputId = "EPWT_trendLineGroup", ## Choice of Trend Line for ROP graph
-                                         label = "Choose a trend line to display:",
-                                         c("None" = "None",
-                                           "Linear Trend" = "Linear",
-                                           "Loess Trend" = "Loess",
-                                           "Quadratic Trend" = "Quadratic",
-                                           "Cubic Trend" = "Cubic")),
-                             
-                             wellPanel(
-                               selectInput("EPWT_fformatGroup", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
-                               downloadButton("EPWT_downloadDataGroup", "Download Data"),
-                               downloadButton("EPWT_downloadExplanationFileGroup", "More Information")
-                             )),
-                           
-                           mainPanel(
-                             plotOutput("EPWT_plotGroup1"),
-                             div(downloadButton("EPWT_downloadPlot1Group", "Download Plot 1"),style="float:right"),
-                             br(),
-                             br(),
-                             plotOutput("EPWT_plotGroup2"),
-                             div(downloadButton("EPWT_downloadPlot2Group", "Download Plot 2"),style="float:right"),
-                             br(),
-                             br(),
-                             uiOutput("EPWT_textGroup")
-                           ))),
-                
-                ###################### Country Profit Rate ########################
-                
-                tabPanel("By Country",
-                         sidebarLayout(
-                           sidebarPanel(
-                             airDatepickerInput("EPWT_dateStartCountry",
-                                                label = "Start Year",
-                                                value = "1950-01-02",
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "1950-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             airDatepickerInput("EPWT_dateEndCountry",
-                                                label = "End Year",
-                                                value = Sys.Date()-365,
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "1950-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             selectInput(inputId = "EPWT_country", ## Country
-                                         label = "Choose Country:",
-                                         choices = sort(unique(PWT$country)),
-                                         selected = "United States"),
-                             
-                             selectInput(inputId = "EPWT_trendLineCountry", ## Choice of Trend Line for ROP graph
-                                         label = "Choose a trend line to display:",
-                                         c("None" = "None",
-                                           "Linear Trend" = "Linear",
-                                           "Loess Trend" = "Loess",
-                                           "Quadratic Trend" = "Quadratic",
-                                           "Cubic Trend" = "Cubic")),
-                             
-                             wellPanel(
-                               selectInput("EPWT_fformatCountry", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
-                               downloadButton("EPWT_downloadDataCountry", "Download Data"),
-                               downloadButton("EPWT_downloadExplanationFileCountry", "More Information")
-                             )),
-                           
-                           mainPanel(
-                             plotOutput("EPWT_plotCountry1"),
-                             div(downloadButton("EPWT_downloadPlot1Country", "Download Plot 1"),style="float:right"),
-                             br(),
-                             br(),
-                             plotOutput("EPWT_plotCountry2"),
-                             div(downloadButton("EPWT_downloadPlot2Country", "Download Plot 2"),style="float:right"),
-                             br(),
-                             br(),
-                             uiOutput("EPWT_textCountry")
-                           )
-                         )
-                )
-              )
-      ),
+                             plotOutput("CL_plotGroup2"),
+                             div(downloadButton("CL_downloadPlot2Group", "Download Plot 2"),style="float:right")
+                    ), ## tabPanel (Group)
+                    
+                    ###################### Country Profit Rate ########################
+                    
+                    tabPanel("By Country",
+                             uiOutput("CL_countryMainPanel")
+                    ), ## tabPanel (Country)
+                    
+                    id="CL_tab" 
+                  ) ## tabSetPanel
+                ) ## mainPanel
+              ), ## sideBarLayout
+              br(),
+              uiOutput("CL_text"),
+              downloadButton("CL_downloadExplanationFile", "More Information")
+      ), ## tabItem (CL)
       
-      ############################################# WIOT #################################
+      ############################################# Industry-Level #################################
       
-      tabItem(tabName="WIOT",
-              tabsetPanel(
+      tabItem(tabName="IL",
+              
+              sidebarLayout(
+                sidebarPanel(
+                  selectInput("IL_industry",
+                              label = "Select Industry:",
+                              choices = sort(unique(WIOD$description)),
+                              selectize=FALSE),
+                  
+                  airDatepickerInput("IL_dateStart",
+                                     label = "Start Year",
+                                     value = "2000-01-02",
+                                     maxDate = Sys.Date()-365,
+                                     minDate = "2000-01-02",
+                                     view = "years", #editing what the popup calendar shows when it opens
+                                     minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
+                                     dateFormat = "yyyy"
+                  ),
+                  
+                  airDatepickerInput("IL_dateEnd",
+                                     label = "End Year",
+                                     value = Sys.Date()-365,
+                                     maxDate = Sys.Date()-365,
+                                     minDate = "2000-01-02",
+                                     view = "years", #editing what the popup calendar shows when it opens
+                                     minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
+                                     dateFormat = "yyyy"
+                  ),
+                  
+                  uiOutput("IL_conditionalPanel"),
+                  
+                  selectInput(inputId = "IL_trendLine", ## Choice of Trend Line for ROP graph
+                              label = "Trend line:",
+                              c("None" = "None",
+                                "Linear Trend" = "Linear",
+                                "Loess Trend" = "Loess",
+                                "Quadratic Trend" = "Quadratic",
+                                "Cubic Trend" = "Cubic")),
+                  
+                  wellPanel(
+                    selectInput("IL_fformat", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
+                    uiOutput("IL_downloadData")
+                  )
+                ), ## sideBarPanel
                 
-                ###################### Global Profit Rate ########################
-                
-                tabPanel("Global",
-                         sidebarLayout(
-                           sidebarPanel(
-                             airDatepickerInput("WIOT_dateStartGlobal",
-                                                label = "Start Year",
-                                                value = "2000-01-02",
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "2000-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             airDatepickerInput("WIOT_dateEndGlobal",
-                                                label = "End Year",
-                                                value = Sys.Date()-365,
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "2000-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             selectInput(inputId = "WIOT_trendLineGlobal", ## Choice of Trend Line for ROP graph
-                                         label = "Choose a trend line to display:",
-                                         c("None" = "None",
-                                           "Linear Trend" = "Linear",
-                                           "Loess Trend" = "Loess",
-                                           "Quadratic Trend" = "Quadratic",
-                                           "Cubic Trend" = "Cubic")),
-                             
-                             wellPanel(
-                               selectInput("WIOT_fformatGlobal", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
-                               downloadButton("WIOT_downloadDataGlobal", "Download Data"),
-                               downloadButton("WIOT_downloadExplanationFileGlobal", "More Information")
-                             )),
-                           
-                           mainPanel(
-                             plotOutput("WIOT_plotGlobal1"),
-                             div(downloadButton("WIOT_downloadPlot1Global", "Download Plot 1"),style="float:right"),
+                mainPanel(
+                  tabsetPanel(
+                    
+                    ###################### Global Profit Rate ########################
+                    
+                    tabPanel("Global",
+                             plotOutput("IL_plotGlobal1"),
+                             div(downloadButton("IL_downloadPlot1Global", "Download Plot 1"),style="float:right"),
                              br(),
                              br(),
-                             plotOutput("WIOT_plotGlobal2"),
-                             div(downloadButton("WIOT_downloadPlot2Global", "Download Plot 2"),style="float:right"),
+                             plotOutput("IL_plotGlobal2"),
+                             div(downloadButton("IL_downloadPlot2Global", "Download Plot 2"),style="float:right")
+                    ),
+                    
+                    ###################### Group Profit Rate ########################
+                    
+                    tabPanel("By Group",
+                             plotOutput("IL_plotGroup1"),
+                             div(downloadButton("IL_downloadPlot1Group", "Download Plot 1"),style="float:right"),
                              br(),
                              br(),
-                             uiOutput("WIOT_textGlobal")
-                           ))),
-                
-                ###################### Industry Profit Rate ########################
-                
-                tabPanel("By Industry",
-                         br()),
-                
-                ###################### Country Profit Rate ########################
-                
-                tabPanel("By Country",
-                         sidebarLayout(
-                           sidebarPanel(
-                             airDatepickerInput("WIOT_dateStartCountry",
-                                                label = "Start Year",
-                                                value = "2000-01-02",
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "2000-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             airDatepickerInput("WIOT_dateEndCountry",
-                                                label = "End Year",
-                                                value = Sys.Date()-365,
-                                                maxDate = Sys.Date()-365,
-                                                minDate = "2000-01-02",
-                                                view = "years", #editing what the popup calendar shows when it opens
-                                                minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
-                                                dateFormat = "yyyy"
-                             ),
-                             
-                             selectInput(inputId = "WIOT_country", ## Country
-                                         label = "Choose Country:",
-                                         choices = sort(unique(WIOT$Name)),
-                                         selected = "United States"),
-                             
-                             selectInput(inputId = "WIOT_trendLineCountry", ## Choice of Trend Line for ROP graph
-                                         label = "Choose a trend line to display:",
-                                         c("None" = "None",
-                                           "Linear Trend" = "Linear",
-                                           "Loess Trend" = "Loess",
-                                           "Quadratic Trend" = "Quadratic",
-                                           "Cubic Trend" = "Cubic")),
-                             
-                             wellPanel(
-                               selectInput("WIOT_fformatCountry", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
-                               downloadButton("WIOT_downloadDataCountry", "Download Data"),
-                               downloadButton("WIOT_downloadExplanationFileCountry", "More Information")
-                             )),
-                           
-                           mainPanel(
-                             plotOutput("WIOT_plotCountry1"),
-                             div(downloadButton("WIOT_downloadPlot1Country", "Download Plot 1"),style="float:right"),
+                             plotOutput("IL_plotGroup2"),
+                             div(downloadButton("IL_downloadPlot2Group", "Download Plot 2"),style="float:right")
+                    ),
+                    
+                    ###################### Country Profit Rate ########################
+                    
+                    tabPanel("By Country",
+                             plotOutput("IL_plotCountry1"),
+                             div(downloadButton("IL_downloadPlot1Country", "Download Plot 1"),style="float:right"),
                              br(),
                              br(),
-                             plotOutput("WIOT_plotCountry2"),
-                             div(downloadButton("WIOT_downloadPlot2Country", "Download Plot 2"),style="float:right"),
-                             br(),
-                             br(),
-                             uiOutput("WIOT_textCountry")
-                           )
-                         )
-                )
-              )
-      )
-    )
-  )
-)
+                             plotOutput("IL_plotCountry2"),
+                             div(downloadButton("IL_downloadPlot2Country", "Download Plot 2"),style="float:right")
+                    ),
+                    
+                    id="IL_tab"
+                  ) ## tabSetPanel
+                ) ## mainPanel
+              ), ## sideBarLayout
+              br(),
+              uiOutput("IL_text"),
+              downloadButton("IL_downloadExplanationFile", "More Information") 
+      ) ## tabItem (IL)
+    )## tabItems
+  ) ## dashboardBody
+) ## dashboardPage
 
+
+############### Server #################
 
 server <- function(input, output) {
   
-  ############################################# EPWT ###############################################
+  ############################################# Country-Level ###############################################
   
-  ###################### Global Profit Rate ########################
-  
-  ## Global data - Using all available data observations from each year
-  data.EPWT.Global.All <- reactive({
-    PWT %>% filter(format(input$EPWT_dateStartGlobal,format="%Y") <= year & year <= format(input$EPWT_dateEndGlobal,format="%Y")) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(r*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
-  })
-  
-  ## Global data - Using only countries which have observations in every year in the user's time selection
-  data.EPWT.Global.LimitCountries <- reactive({
-    data <- PWT %>% filter(format(input$EPWT_dateStartGlobal,format="%Y") <= year & year <= format(input$EPWT_dateEndGlobal,format="%Y"))
-    ## Create a list of countries which have data in all years selected
-    validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
-    data %>% filter(countrycode %in% validCountries$countrycode) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(r*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
-  })
-  
-  ## Create list with both All and LimitCountries dfs
-  data.EPWT.Global <- reactive({
-    list(All=data.EPWT.Global.All(),
-         LimitCountries=data.EPWT.Global.LimitCountries())
-  })
-  
-  ## Create df with average annual growth rates for OCR, PS, and ROP
-  data.EPWT.Global.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.EPWT.Global()[[input$EPWT_globalAggregate]]$OCR),
-               gr_PS = avg_GR(data.EPWT.Global()[[input$EPWT_globalAggregate]]$PS),
-               gr_ROP=avg_GR(data.EPWT.Global()[[input$EPWT_globalAggregate]]$ROP))
-  })
-  
-  EPWT_GlobalPlot1 <- reactive({
-    ggplot(data = data.EPWT.Global()[[input$EPWT_globalAggregate]]  %>%
-             select(year, ROP), 
-           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
-      geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$EPWT_trendLineGlobal]][1],
-                  formula=ui.trendLineList[[input$EPWT_trendLineGlobal]][2],
-                  se=FALSE,
-                  linetype="dashed") +
-      labs(x="Year",
-           y="Percentage",
-           title=paste0("Global Annual Rate of Profit"),
-           subtitle=ui.EPWT_GlobalPlot1Subtitle[[input$EPWT_globalAggregate]]) +
-      theme_minimal()
-  })
-  
-  ## Plot Global ROP
-  output$EPWT_plotGlobal1 <- renderPlot({
-    EPWT_GlobalPlot1()
-  })
-  
-  EPWT_GlobalPlot2 <- reactive({
-    ggplot(data = data.EPWT.Global.GR() %>%
-             gather("Measure",
-                    "Value"), 
-           aes(x=Measure, y=Value, fill=Measure)) +
-      geom_bar(stat="identity", position=position_dodge()) +
-      theme_minimal() +
-      theme(axis.text.x=element_blank()) +
-      scale_fill_manual("Measure",
-                        values = c("navajowhite1",
-                                   "lightsalmon1",
-                                   "lightsalmon4"),
-                        labels = c("Output-Capital Ratio",
-                                   "Profit Share",
-                                   "Rate of Profit")) +
-      labs(x="",
-           y="Average Growth Rate (%)",
-           title="Rate of Profit Decomposition",
-           subtitle=paste0("Average Rates of Growth: ",format(input$EPWT_dateStartGlobal,format="%Y")," - ",format(input$EPWT_dateEndGlobal,format="%Y")))
-  })
-  
-  ## Plot Global ROP Decomposition
-  output$EPWT_plotGlobal2 <- renderPlot({
-    EPWT_GlobalPlot2()
-  })
-  
-  output$EPWT_downloadPlot1Global <- downloadHandler(
-    filename = function(){paste0("RateOfProfit - Global.",input$EPWT_fformatGlobal)},
-    content = function(file) {
-      do.call(input$EPWT_fformatGlobal,list(file))
-      print(EPWT_GlobalPlot1())
-      dev.off()
-    })
-  
-  output$EPWT_downloadPlot2Global <- downloadHandler(
-    filename = function(){paste0("RateOfProfitDecomposition - Global.",input$EPWT_fformatGlobal)},
-    content = function(file) {
-      do.call(input$EPWT_fformatGlobal,list(file))
-      print(EPWT_GlobalPlot2())
-      dev.off()
-    })
-  
-  output$EPWT_downloadDataGlobal <- downloadHandler(
-    filename = "RateofProfit Data - Global.csv",
-    content = function(file){
-      write.table(data.EPWT.Global()[[input$EPWT_globalAggregate]], file = file, sep = ",", row.names = FALSE)
+  ## Conditional Panel to display
+  output$CL_conditionalPanel1 <- renderUI({
+    if(input$CL_tab=="Global" | input$CL_tab=="By Group"){
+      selectInput(inputId = "CL_aggregate", ## Choose method for aggregating data
+                  label = "Method to compute Aggregates:",
+                  choices = c("Use all available data observations" = "All",
+                              "Use only countries with data observations in all selected years" = "LimitCountries"),
+                  selectize=FALSE)
     }
-  )
-  
-  ###################### Income Group Profit Rate ########################
-  
-  ## Group data - Using all available data observations from each year
-  data.EPWT.Group.All <- reactive({
-    PWT %>% filter(wb_income_group==input$EPWT_group,
-                   format(input$EPWT_dateStartGroup,format="%Y") <= year & year <= format(input$EPWT_dateEndGroup,format="%Y")) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(r*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
   })
-  
-  ## Group data - Using only countries which have observations in every year in the user's time selection
-  data.EPWT.Group.LimitCountries <- reactive({
-    ## Filter for countries which have observations for every year in selected date range
-    data <- PWT %>% filter(wb_income_group==input$EPWT_group,
-                           format(input$EPWT_dateStartGroup,format="%Y") <= year & year <= format(input$EPWT_dateEndGroup,format="%Y"))
-    ## Create a list of countries which have data in all years selected
-    validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
-    data %>% filter(countrycode %in% validCountries$countrycode) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(r*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
-  })
-  
-  ## Create list with both All and LimitCountries dfs
-  data.EPWT.Group <- reactive({
-    list(All=data.EPWT.Group.All(),
-         LimitCountries=data.EPWT.Group.LimitCountries())
-  })
-  
-  ## Create df with average annual growth rates for OCR, PS, and ROP
-  data.EPWT.Group.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.EPWT.Group()[[input$EPWT_groupAggregate]]$OCR),
-               gr_PS = avg_GR(data.EPWT.Group()[[input$EPWT_groupAggregate]]$PS),
-               gr_ROP=avg_GR(data.EPWT.Group()[[input$EPWT_groupAggregate]]$ROP))
-  })
-  
-  EPWT_GroupPlot1 <- reactive({
-    ggplot(data = data.EPWT.Group()[[input$EPWT_groupAggregate]] %>%
-             select(year, ROP), 
-           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
-      geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$EPWT_trendLineGroup]][1],
-                  formula=ui.trendLineList[[input$EPWT_trendLineGroup]][2],
-                  se=FALSE,
-                  linetype="dashed") +
-      labs(x="Year",
-           y="Percentage",
-           title=paste0(input$EPWT_group," Annual Rate of Profit"),
-           subtitle=ui.EPWT_GlobalPlot1Subtitle[[input$EPWT_groupAggregate]]) +
-      theme_minimal()
-  })
-  
-  ## Plot Group ROP
-  output$EPWT_plotGroup1 <- renderPlot({
-    EPWT_GroupPlot1()
-  })
-  
-  EPWT_GroupPlot2 <- reactive({
-    ggplot(data = data.EPWT.Group.GR() %>%
-             gather("Measure",
-                    "Value"), 
-           aes(x=Measure, y=Value, fill=Measure)) +
-      geom_bar(stat="identity", position=position_dodge()) +
-      theme_minimal() +
-      theme(axis.text.x=element_blank()) +
-      scale_fill_manual("Measure",
-                        values = c("navajowhite1",
-                                   "lightsalmon1",
-                                   "lightsalmon4"),
-                        labels = c("Output-Capital Ratio",
-                                   "Profit Share",
-                                   "Rate of Profit")) +
-      labs(x="",
-           y="Average Growth Rate (%)",
-           title="Rate of Profit Decomposition",
-           subtitle=paste0("Average Rates of Growth: ",
-                           format(input$EPWT_dateStartGroup,format="%Y"),
-                           " - ",
-                           format(input$EPWT_dateEndGroup,format="%Y")))
-  })
-  
-  ## Plot Group ROP Decomposition
-  output$EPWT_plotGroup2 <- renderPlot({
-    EPWT_GroupPlot2()
-  })
-  
-  output$EPWT_downloadPlot1Group <- downloadHandler(
-    filename = function(){str_replace(paste0("RateOfProfit - ",input$EPWT_group,".",input$EPWT_fformatGroup),":"," -")},
-    content = function(file) {
-      do.call(input$EPWT_fformatGroup,list(file))
-      print(EPWT_GroupPlot1())
-      dev.off()
-    })
-  
-  output$EPWT_downloadPlot2Group <- downloadHandler(
-    filename = function(){str_replace(paste0("RateOfProfitDecomposition - ",input$EPWT_group,".",input$EPWT_fformatGroup),":"," -")},
-    content = function(file) {
-      do.call(input$EPWT_fformatGroup,list(file))
-      print(EPWT_GroupPlot2())
-      dev.off()
-    })
-  
-  output$EPWT_downloadDataGroup <- downloadHandler(
-    filename = function(){str_replace(paste0("RateofProfit Data - ",input$EPWT_group,".csv"),":"," -")},
-    content = function(file){
-      write.table(data.EPWT.Group()[[input$EPWT_groupAggregate]], file = file, sep = ",", row.names = FALSE)
+  output$CL_conditionalPanel2 <- renderUI({
+    if(input$CL_tab=="By Group"){
+      selectInput(inputId = "CL_group", ## Income Group
+                  label = "Income Group:",
+                  choices = sort(unique(EPWT$wb_income_group)[2:6]), # First value is NA, 
+                  selected = "High income: OECD")
+    } else if(input$CL_tab=="By Country"){
+      selectInput(inputId = "CL_country", ## Country
+                  label = "Country:",
+                  choices = sort(unique(EPWT$country)), 
+                  selected = "United States")
     }
-  )
-  
-  ###################### Individual Country Profit Rate ########################
-  
-  ## Data for individual country selection
-  data.EPWT.Country <- reactive({
-    PWT %>% filter(country==input$EPWT_country,
-                   format(input$EPWT_dateStartCountry,format="%Y") <= year & year <= format(input$EPWT_dateEndCountry,format="%Y"))
   })
   
-  ## Create df with average annual growth rates for OCR, PS, and ROP
-  data.EPWT.Country.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.EPWT.Country()[with(data.EPWT.Country(),order(year)),]$OCR),
-               gr_PS = avg_GR(data.EPWT.Country()[with(data.EPWT.Country(),order(year)),]$PS),
-               gr_ROP=avg_GR(data.EPWT.Country()[with(data.EPWT.Country(),order(year)),]$r))
-  })
-  
-  EPWT_CountryPlot1 <- reactive({
-    ggplot(data = data.EPWT.Country(), 
-           aes(x=as.Date(as.character(year), "%Y"), y=r)) + 
-      geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$EPWT_trendLineCountry]][1],
-                  formula=ui.trendLineList[[input$EPWT_trendLineCountry]][2],
-                  se=FALSE,
-                  linetype="dashed") +
-      labs(x="Year",
-           y="Percentage",
-           title=paste0("Annual Rate of Profit"),
-           subtitle=input$EPWT_country) +
-      theme_minimal()
-  })
-  
-  ## Plot Country ROP
-  output$EPWT_plotCountry1 <- renderPlot({
-    EPWT_CountryPlot1()
-  })
-  
-  EPWT_CountryPlot2 <- reactive({
-    ggplot(data = data.EPWT.Country.GR() %>%
-             gather("Measure",
-                    "Value"), 
-           aes(x=Measure, y=Value, fill=Measure)) +
-      geom_bar(stat="identity", position=position_dodge()) +
-      theme_minimal() +
-      theme(axis.text.x=element_blank()) +
-      scale_fill_manual("Measure",
-                        values = c("navajowhite1",
-                                   "lightsalmon1",
-                                   "lightsalmon4"),
-                        labels = c("Output-Capital Ratio",
-                                   "Profit Share",
-                                   "Rate of Profit")) +
-      labs(x="",
-           y="Average Growth Rate (%)",
-           title="Rate of Profit Decomposition",
-           subtitle=paste0("Average Rates of Growth: ",
-                           format(input$EPWT_dateStartCountry,format="%Y"),
-                           " - ",
-                           format(input$EPWT_dateEndCountry,format="%Y")))
-  })
-
-  ## Plot Country ROP Decomposition
-  output$EPWT_plotCountry2 <- renderPlot({
-    EPWT_CountryPlot2()
-  })
-  
-  output$EPWT_downloadPlot1Country <- downloadHandler(
-    filename = function(){paste0("RateOfProfit - ",input$EPWT_country,".",input$EPWT_fformatCountry)},
-    content = function(file) {
-      do.call(input$EPWT_fformatCountry,list(file))
-      print(EPWT_CountryPlot1())
-      dev.off()
-    })
-  
-  output$EPWT_downloadPlot2Country <- downloadHandler(
-    filename = function(){paste0("RateOfProfitDecomposition - ",input$EPWT_country,".",input$EPWT_fformatCountry)},
-    content = function(file) {
-      do.call(input$EPWT_fformatCountry,list(file))
-      print(EPWT_CountryPlot2())
-      dev.off()
-    })
-  
-  output$EPWT_downloadDataCountry <- downloadHandler(
-    filename = function(){paste0("RateofProfit Data - ",input$EPWT_country,".csv")},
-    content = function(file){
-      write.table(data.EPWT.Country() %>%
-                    select(year,OCR,PS,r), 
-                  file = file, sep = ",", row.names = FALSE)
+  ## Download button for sidePanel
+  output$CL_downloadData <- renderUI({
+    if(input$CL_tab=="Global"){
+      downloadButton("CL_downloadDataGlobal", "Download Data")
+    } else if(input$CL_tab=="By Group"){
+      downloadButton("CL_downloadDataGroup", "Download Data")
+    } else if(input$CL_tab=="By Country"){
+      downloadButton("CL_downloadDataCountry", "Download Data")
     }
-  )
-  
-  ######################## Common Functions ################################
+  })
   
   ## Download Handler for downloading explanatory pdf
-  output$EPWT_downloadExplanationFileGlobal <- downloadHandler(
-    filename = "world-profitability.pdf",
-    content = function(file) {
-      file.copy("world-profitability.pdf", file)
-    })
-  output$EPWT_downloadExplanationFileGroup <- downloadHandler(
-    filename = "world-profitability.pdf",
-    content = function(file) {
-      file.copy("world-profitability.pdf", file)
-    })
-  output$EPWT_downloadExplanationFileCountry <- downloadHandler(
+  output$CL_downloadExplanationFile <- downloadHandler(
     filename = "world-profitability.pdf",
     content = function(file) {
       file.copy("world-profitability.pdf", file)
@@ -793,172 +414,605 @@ server <- function(input, output) {
   ## Text to display at bottom of page
   description <- tagList("Data for the profitability analysis reported on this dashboard comes from the ",
                          a("Extended Penn World Table",href="https://sites.google.com/a/newschool.edu/duncan-foley-homepage/home/EPWT"),
-                         ". We thank Adalmir Marquetti for sharing the data with us. More details can be found on the downloaded data file. This dashboard has been created and is maintained by Evan Wasner (",
-                         a("ewasner@umass.edu",href="mailto:@ewasner@umass.edu"),
-                         ") and Deepankar Basu (",
-                         a("dbasu@econs.umass.edu",href="mailto:@dbasu@econs.umass.edu"),
-                         ").")
+                         "and the ",
+                         HTML(paste0(a("World Input-Output Database",href="https://www.rug.nl/ggdc/valuechain/wiod/?lang=en"),".")),
+                         " More details can be found in the documentation file available for download below. This dashboard has been created and is maintained by Evan Wasner ",
+                         HTML(paste0("(",a("ewasner@umass.edu",href="mailto:@ewasner@umass.edu"),"),")),
+                         " Jesus Lara Jauregui ",
+                         HTML(paste0("(",a("jlarajauregu@umass.edu",href="mailto:@jlarajauregu@umass.edu"),"),")),
+                         " Julio Huato ",
+                         HTML(paste0("(",a("juliohuato@gmail.com",href="mailto:@juliohuato@gmail.com"),"),")),
+                         " and Deepankar Basu ",
+                         HTML(paste0("(",a("dbasu@econs.umass.edu",href="mailto:@dbasu@econs.umass.edu"),")."))) 
   
   ## Shiny cannot use the same output multiple times --> therefore must define three separate outputs to reuse text
-  output$EPWT_textGlobal <- renderUI({description})
-  output$EPWT_textGroup <- renderUI({description})
-  output$EPWT_textCountry <- renderUI({description})
-  
-  ############################################# WIOT ###############################################
+  output$CL_text <- renderUI({description})
   
   ###################### Global Profit Rate ########################
   
-  data.WIOT.Global <- reactive({
-    WIOT %>% 
-      group_by(year, country) %>% summarize(across(c(LAB, K, CAP, VA), sum)) %>%
-      filter(format(input$WIOT_dateStartGlobal,format="%Y") <= year & year <= format(input$WIOT_dateEndGlobal,format="%Y")) %>%
+  ## Global EPWT data - Using all available data observations from each year
+  data.CL.EPWT.Global.All <- reactive({
+    EPWT %>% filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
+      group_by(year) %>% 
+      ## Calculate each observation's share in global capital stock and global output
+      mutate(Kshare=K/sum(K),
+             Yshare=Y/sum(Y)) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Global EPWT data - Using only countries which have observations in every year in the user's time selection
+  data.CL.EPWT.Global.LimitCountries <- reactive({
+    data <- EPWT %>% filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
+    ## Create a list of countries which have data in all years selected
+    validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
+    data %>% filter(countrycode %in% validCountries$countrycode) %>%
+      group_by(year) %>% 
+      ## Calculate each observation's share in global capital stock and global output
+      mutate(Kshare=K/sum(K),
+             Yshare=Y/sum(Y)) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Create list with both All and LimitCountries dfs for EPWT
+  data.CL.EPWT.Global <- reactive({
+    list(All=data.CL.EPWT.Global.All(),
+         LimitCountries=data.CL.EPWT.Global.LimitCountries())
+  })
+  
+  ## Create WIOD data
+  data.CL.WIOD.Global <- reactive({
+    WIOD %>% 
+      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
+      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
       mutate(OCR=VA/K,
-             PS1=CAP/VA,
-             ROP1=OCR*PS1,
+             PS=CAP/VA,
+             ROP=100*OCR*PS,
+             Kshare=K/sum(K),
+             Yshare=VA/sum(VA)) %>% 
+      group_by(year) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
+  data.CL.Global <- reactive({
+    list("EPWT" = data.CL.EPWT.Global()[[input$CL_aggregate]],
+         "WIOD" = data.CL.WIOD.Global())
+  })
+  
+  ## Create df with average annual growth rates for OCR, PS, and ROP
+  data.CL.Global.GR <- reactive({
+    data.frame(gr_OCR = avg_GR(data.CL.Global()[[input$CL_dataSource]]$OCR),
+               gr_PS = avg_GR(data.CL.Global()[[input$CL_dataSource]]$PS),
+               gr_ROP=avg_GR(data.CL.Global()[[input$CL_dataSource]]$ROP))
+  })
+  
+  ## Plot Global ROP
+  CL_GlobalPlot1 <- reactive({
+    ggplot(data = data.CL.Global()[[input$CL_dataSource]], 
+           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
+      geom_line() +
+      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                  formula=ui.trendLineList[[input$CL_trendLine]][2],
+                  se=FALSE,
+                  linetype="dashed") +
+      labs(x="Year",
+           y="Percentage",
+           title=paste0("Global Annual Rate of Profit"),
+           subtitle=paste0(input$CL_dataSource,
+                           ": ",
+                           ui.CL_GlobalPlot1Subtitle[[input$CL_aggregate]])) +
+      theme_minimal()
+  })
+  
+  ## Plot Global ROP - output
+  output$CL_plotGlobal1 <- renderPlot({
+    CL_GlobalPlot1()
+  })
+  
+  ## Plot Global ROP Decomposition
+  CL_GlobalPlot2Histogram <- reactive({
+    ggplot(data = data.CL.Global.GR() %>%
+             gather("Measure",
+                    "Value"), 
+           aes(x=Measure, y=Value, fill=Measure)) +
+      geom_bar(stat="identity", position=position_dodge()) +
+      theme_minimal() +
+      theme(axis.text.x=element_blank()) +
+      scale_fill_manual("Measure",
+                        values = c("navajowhite1",
+                                   "lightsalmon1",
+                                   "lightsalmon4"),
+                        labels = c("Output-Capital Ratio",
+                                   "Profit Share",
+                                   "Rate of Profit")) +
+      labs(x="",
+           y="Average Growth Rate (%)",
+           title="Rate of Profit Decomposition",
+           subtitle=paste0("Average Rates of Growth: ",format(input$CL_dateStart,format="%Y")," - ",format(input$CL_dateEnd,format="%Y")))
+  })
+  
+  CL_GlobalPlot2TimeSeries <- reactive({
+    ggplot(data = data.CL.Global()[[input$CL_dataSource]] %>%
+             select(year,OCR,PS) %>%
+             gather("Measure",
+                    "Value",
+                    -year),
+           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+      geom_line() +
+      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                  formula=ui.trendLineList[[input$CL_trendLine]][2],
+                  se=FALSE,
+                  linetype="dashed") +
+      labs(x="Year",
+           y="Ratio",
+           title=paste0("Rate of Profit Decomposition")) +
+      scale_color_discrete(labels = c("Output-Capital Ratio",
+                                      "Profit Share")) +
+      theme_minimal()
+  })
+  
+  ## Plot Global ROP Decomposition - output
+  output$CL_plotGlobal2 <- renderPlot({
+    if(input$CL_plot2Type=="histogram"){
+      CL_GlobalPlot2Histogram()
+    } else{
+      CL_GlobalPlot2TimeSeries()
+    }
+    
+  })
+  
+  ## Download Handler for Plot 1
+  output$CL_downloadPlot1Global <- downloadHandler(
+    filename = function(){paste0("RateOfProfit - Global - ",
+                                 input$CL_dataSource,
+                                 ".",
+                                 input$CL_fformat)},
+    content = function(file) {
+      do.call(input$CL_fformat,list(file))
+      print(CL_GlobalPlot1())
+      dev.off()
+    })
+  
+  ## Download Handler for Plot 2
+  output$CL_downloadPlot2Global <- downloadHandler(
+    filename = function(){paste0("RateOfProfitDecomposition - Global - ",
+                                 input$CL_dataSource,
+                                 ".",
+                                 input$CL_fformat)},
+    content = function(file) {
+      do.call(input$CL_fformat,list(file))
+      if(input$CL_plot2Type=="histogram"){
+        print(CL_GlobalPlot2Histogram())
+      } else{
+        print(CL_GlobalPlot2TimeSeries())
+      }
+      dev.off()
+    })
+  
+  ## Download Handler for Global ROP data
+  output$CL_downloadDataGlobal <- downloadHandler(
+    filename = function(){paste0("RateofProfit Data - Global - ",
+                                 input$CL_dataSource,
+                                 ".csv")},
+    content = function(file){
+      write.table(data.CL.Global()[[input$CL_dataSource]], file = file, sep = ",", row.names = FALSE)
+    }
+  )
+  
+  ###################### Income Group Profit Rate ########################
+  
+  ## Group EPWT data - Using all available data observations from each year
+  data.CL.EPWT.Group.All <- reactive({
+    EPWT %>% filter(wb_income_group==input$CL_group,
+                   format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
+      group_by(year) %>% 
+      ## Calculate each observation's share in global capital stock and global output
+      mutate(Kshare=K/sum(K),
+             Yshare=Y/sum(Y)) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Group EPWT data - Using only countries which have observations in every year in the user's time selection
+  data.CL.EPWT.Group.LimitCountries <- reactive({
+    ## Filter for countries which have observations for every year in selected date range
+    data <- EPWT %>% filter(wb_income_group==input$CL_group,
+                           format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
+    ## Create a list of countries which have data in all years selected
+    validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
+    data %>% filter(countrycode %in% validCountries$countrycode) %>%
+      group_by(year) %>% 
+      ## Calculate each observation's share in global capital stock and global output
+      mutate(Kshare=K/sum(K),
+             Yshare=Y/sum(Y)) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Create list with both All and LimitCountries dfs
+  data.CL.EPWT.Group <- reactive({
+    list(All=data.CL.EPWT.Group.All(),
+         LimitCountries=data.CL.EPWT.Group.LimitCountries())
+  })
+  
+  ## Create WIOD data
+  data.CL.WIOD.Group <- reactive({
+    WIOD %>% 
+      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"),
+             wb_income_group==input$CL_group) %>%
+      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
+      mutate(OCR=VA/K,
+             PS=CAP/VA,
+             ROP=100*OCR*PS,
              Kshare=K/sum(K),
              Yshare=VA/sum(VA)) %>% group_by(year) %>%
       ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP1*Kshare),
-                PS=sum(PS1*Yshare),
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
+  data.CL.Group <- reactive({
+    list("EPWT" = data.CL.EPWT.Group()[[input$CL_aggregate]],
+         "WIOD" = data.CL.WIOD.Group())
+  })
+  
+  ## Create df with average annual growth rates for OCR, PS, and ROP
+  data.CL.Group.GR <- reactive({
+    data.frame(gr_OCR = avg_GR(data.CL.Group()[[input$CL_dataSource]]$OCR),
+               gr_PS = avg_GR(data.CL.Group()[[input$CL_dataSource]]$PS),
+               gr_ROP=avg_GR(data.CL.Group()[[input$CL_dataSource]]$ROP))
+  })
+  
+  CL_GroupPlot1 <- reactive({
+    ggplot(data = data.CL.Group()[[input$CL_dataSource]], 
+           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
+      geom_line() +
+      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                  formula=ui.trendLineList[[input$CL_trendLine]][2],
+                  se=FALSE,
+                  linetype="dashed") +
+      labs(x="Year",
+           y="Percentage",
+           title=paste0(input$CL_group," Annual Rate of Profit"),
+           subtitle=paste0(input$CL_dataSource,
+                           ": ",
+                           ui.CL_GlobalPlot1Subtitle[[input$CL_aggregate]])) +
+      theme_minimal()
+  })
+  
+  ## Plot Group ROP - output
+  output$CL_plotGroup1 <- renderPlot({
+    CL_GroupPlot1()
+  })
+  
+  ## Plot Group ROP Decomposition
+  CL_GroupPlot2 <- reactive({
+    ggplot(data = data.CL.Group.GR() %>%
+             gather("Measure",
+                    "Value"), 
+           aes(x=Measure, y=Value, fill=Measure)) +
+      geom_bar(stat="identity", position=position_dodge()) +
+      theme_minimal() +
+      theme(axis.text.x=element_blank()) +
+      scale_fill_manual("Measure",
+                        values = c("navajowhite1",
+                                   "lightsalmon1",
+                                   "lightsalmon4"),
+                        labels = c("Output-Capital Ratio",
+                                   "Profit Share",
+                                   "Rate of Profit")) +
+      labs(x="",
+           y="Average Growth Rate (%)",
+           title="Rate of Profit Decomposition",
+           subtitle=paste0("Average Rates of Growth: ",
+                           format(input$CL_dateStart,format="%Y"),
+                           " - ",
+                           format(input$CL_dateEnd,format="%Y")))
+  })
+  
+  ## Plot Group ROP Decomposition
+  output$CL_plotGroup2 <- renderPlot({
+    CL_GroupPlot2()
+  })
+  
+  ## Download Handler for Plot 1
+  output$CL_downloadPlot1Group <- downloadHandler(
+    filename = function(){str_replace(paste0("RateOfProfit - ",
+                                             input$CL_group,
+                                             " - ",
+                                             input$CL_dataSource,
+                                             ".",
+                                             input$CL_fformat),
+                                      ":"," -")},
+    content = function(file) {
+      do.call(input$CL_fformat,list(file))
+      print(CL_GroupPlot1())
+      dev.off()
+    })
+  
+  ## Download Handler for Plot 2
+  output$CL_downloadPlot2Group <- downloadHandler(
+    filename = function(){str_replace(paste0("RateOfProfitDecomposition - ",
+                                             input$CL_group,
+                                             " - ",
+                                             input$CL_dataSource,
+                                             ".",
+                                             input$CL_fformat),
+                                      ":"," -")},
+    content = function(file) {
+      do.call(input$CL_fformat,list(file))
+      print(CL_GroupPlot2())
+      dev.off()
+    })
+  
+  ## Download Handler for Data
+  output$CL_downloadDataGroup <- downloadHandler(
+    filename = function(){str_replace(paste0("RateofProfit Data - ",
+                                             input$CL_group,
+                                             " - ",
+                                             input$CL_dataSource,
+                                             ".csv"),
+                                      ":"," -")},
+    content = function(file){
+      write.table(data.CL.Group()[[input$CL_dataSource]], file = file, sep = ",", row.names = FALSE)
+    }
+  )
+  
+  ###################### Individual Country Profit Rate ########################
+
+  ## EPWT Data for individual country selection
+  data.CL.EPWT.Country <- reactive({
+    EPWT %>% 
+      filter(country==input$CL_country,
+             format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
+      select(year,OCR,PS,ROP)
+  })
+  
+  ## WIOD Data for individual country selection
+  data.CL.WIOD.Country <- reactive({
+    WIOD %>% 
+      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"),
+             Name==input$CL_country) %>%
+      group_by(year, Name) %>% 
+      summarize(across(c(K, CAP, VA), sum)) %>%
+      mutate(OCR=VA/K,
+             PS=CAP/VA,
+             ROP=100*OCR*PS)
+  })
+  
+  ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
+  data.CL.Country <- reactive({
+    list("EPWT" = data.CL.EPWT.Country()[with(data.CL.EPWT.Country(),order(year)),],
+         "WIOD" = data.CL.WIOD.Country()[with(data.CL.WIOD.Country(),order(year)),])
+  })
+  
+  ## Create df with average annual growth rates for OCR, PS, and ROP
+  data.CL.Country.GR <- reactive({
+    data.frame(gr_OCR = avg_GR(data.CL.Country()[[input$CL_dataSource]]$OCR),
+               gr_PS = avg_GR(data.CL.Country()[[input$CL_dataSource]]$PS),
+               gr_ROP=avg_GR(data.CL.Country()[[input$CL_dataSource]]$ROP))
+  })
+  
+  ## Plot Country ROP
+  CL_CountryPlot1 <- reactive({
+    ggplot(data = data.CL.Country()[[input$CL_dataSource]], 
+           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
+      geom_line() +
+      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                  formula=ui.trendLineList[[input$CL_trendLine]][2],
+                  se=FALSE,
+                  linetype="dashed") +
+      labs(x="Year",
+           y="Percentage",
+           title=paste0(input$CL_country,
+                        " Annual Rate of Profit"),
+           subtitle=input$CL_dataSource) +
+      theme_minimal()
+  })
+  
+  ## Plot Country ROP - output
+  output$CL_plotCountry1 <- renderPlot({
+    CL_CountryPlot1()
+  })
+  
+  ## Plot Country ROP Decomposition
+  CL_CountryPlot2 <- reactive({
+    ggplot(data = data.CL.Country.GR() %>%
+             gather("Measure",
+                    "Value"), 
+           aes(x=Measure, y=Value, fill=Measure)) +
+      geom_bar(stat="identity", position=position_dodge()) +
+      theme_minimal() +
+      theme(axis.text.x=element_blank()) +
+      scale_fill_manual("Measure",
+                        values = c("navajowhite1",
+                                   "lightsalmon1",
+                                   "lightsalmon4"),
+                        labels = c("Output-Capital Ratio",
+                                   "Profit Share",
+                                   "Rate of Profit")) +
+      labs(x="",
+           y="Average Growth Rate (%)",
+           title="Rate of Profit Decomposition",
+           subtitle=paste0("Average Rates of Growth: ",
+                           format(input$CL_dateStart,format="%Y"),
+                           " - ",
+                           format(input$CL_dateEnd,format="%Y")))
+  })
+
+  ## Plot Country ROP Decomposition - output
+  output$CL_plotCountry2 <- renderPlot({
+    CL_CountryPlot2()
+  })
+  
+  ## Download Handler for Plot 1
+  output$CL_downloadPlot1Country <- downloadHandler(
+    filename = function(){paste0("RateOfProfit - ",
+                                 input$CL_country,
+                                 " - ",
+                                 input$CL_dataSource,
+                                 ".",
+                                 input$CL_fformat)},
+    content = function(file) {
+      do.call(input$CL_fformat,list(file))
+      print(CL_CountryPlot1())
+      dev.off()
+    })
+  
+  ## Download Handler for Plot 2
+  output$CL_downloadPlot2Country <- downloadHandler(
+    filename = function(){paste0("RateOfProfitDecomposition - ",
+                                 input$CL_country,
+                                 " - ",
+                                 input$CL_dataSource,
+                                 ".",
+                                 input$CL_fformat)},
+    content = function(file) {
+      do.call(input$CL_fformat,list(file))
+      print(CL_CountryPlot2())
+      dev.off()
+    })
+  
+  ## Download Handler for Data
+  output$CL_downloadDataCountry <- downloadHandler(
+    filename = function(){paste0("RateofProfit Data - ",
+                                 input$CL_country,
+                                 " - ",
+                                 input$CL_dataSource,
+                                 ".csv")},
+    content = function(file){
+      write.table(data.CL.Country()[[input$CL_dataSource]], 
+                  file = file, sep = ",", row.names = FALSE)
+    }
+  )
+  
+  ## If the user has selected the WIOD data source and a country which is not included in WIOD,
+  ## then display a table which shows which countries are available in each data source. 
+  ## Otherwise display the proper plots and download buttons
+  output$CL_WIODcountryText <- renderText({"The selected country is not available in the WIOD data set. The table below displays the countries available within each data source:"})
+  output$CL_WIODcountryTable <- renderTable({ui.CL_CountriesTable},sanitize.text.function = identity)
+  output$CL_countryMainPanel <- renderUI({
+    if(input$CL_dataSource == "WIOD" & !(input$CL_country %in% unique(WIOD$Name))){
+      list(
+        textOutput("CL_WIODcountryText"),
+        br(),
+        tableOutput("CL_WIODcountryTable"),
+        tags$head(tags$style("#CL_WIODcountryTable table {background-color: white; }", media="screen", type="text/css")))
+    } else{
+      list(
+        plotOutput("CL_plotCountry1"),
+        div(downloadButton("CL_downloadPlot1Country", "Download Plot 1"),style="float:right"),
+        br(),
+        br(),
+        plotOutput("CL_plotCountry2"),
+        div(downloadButton("CL_downloadPlot2Country", "Download Plot 2"),style="float:right"))
+    }
+  })
+  
+  
+  ############################################# Industry-Level ###############################################
+  
+  ## Conditional Panel to display
+  output$IL_conditionalPanel <- renderUI({
+    if(input$IL_tab=="By Group"){
+      selectInput(inputId = "IL_group", ## Income Group
+                  label = "Income Group:",
+                  choices = sort(unique(WIOD$wb_income_group)), 
+                  selected = "High income: OECD")
+    } else if(input$IL_tab=="By Country"){
+      selectInput(inputId = "IL_country", ## Country
+                  label = "Country:",
+                  choices = sort(unique(WIOD$Name)), 
+                  selected = "United States")
+    }
+  })
+  
+  ## Download button for sidePanel
+  output$IL_downloadData <- renderUI({
+    if(input$IL_tab=="Global"){
+      downloadButton("IL_downloadDataGlobal", "Download Data")
+    } else if(input$IL_tab=="By Group"){
+      downloadButton("IL_downloadDataGroup", "Download Data")
+    } else if(input$IL_tab=="By Country"){
+      downloadButton("IL_downloadDataCountry", "Download Data")
+    }
+  })
+  
+  ## Download Handler for downloading explanatory pdf
+  output$IL_downloadExplanationFile <- downloadHandler(
+    filename = "world-profitability.pdf",
+    content = function(file) {
+      file.copy("world-profitability.pdf", file)
+    })
+  
+  ## Shiny cannot use the same output multiple times --> therefore must define three separate outputs to reuse text
+  output$IL_text <- renderUI({description})
+  
+  ###################### Global Profit Rate ########################
+  
+  data.IL.WIOD.Global <- reactive({
+    na.omit(WIOD) %>% 
+      filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
+             description == input$IL_industry,
+             K!=0) %>%
+      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
+      mutate(OCR=VA/K,
+             PS=CAP/VA,
+             ROP=100*OCR*PS,
+             Kshare=K/sum(K),
+             Yshare=VA/sum(VA)) %>% group_by(year) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
                 OCR=sum(OCR*Kshare))
   })
   
   ## Create df with average annual growth rates for OCR, PS, and ROP
-  data.WIOT.Global.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.WIOT.Global()$OCR),
-               gr_PS = avg_GR(data.WIOT.Global()$PS),
-               gr_ROP=avg_GR(data.WIOT.Global()$ROP))
-  })
-  
-  WIOT_GlobalPlot1 <- reactive({
-    ggplot(data = data.WIOT.Global() %>%
-             select(year, ROP), 
-           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
-      geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$WIOT_trendLineGlobal]][1],
-                  formula=ui.trendLineList[[input$WIOT_trendLineGlobal]][2],
-                  se=FALSE,
-                  linetype="dashed") +
-      labs(x="Year",
-           y="Percentage",
-           title=paste0("Global Annual Rate of Profit")) +
-      theme_minimal()
+  data.IL.WIOD.Global.GR <- reactive({
+    data.frame(gr_OCR = avg_GR(data.IL.WIOD.Global()$OCR),
+               gr_PS = avg_GR(data.IL.WIOD.Global()$PS),
+               gr_ROP=avg_GR(data.IL.WIOD.Global()$ROP))
   })
   
   ## Plot Global ROP
-  output$WIOT_plotGlobal1 <- renderPlot({
-    WIOT_GlobalPlot1()
-  })
-  
-  WIOT_GlobalPlot2 <- reactive({
-    ggplot(data = data.WIOT.Global.GR() %>%
-             gather("Measure",
-                    "Value"), 
-           aes(x=Measure, y=Value, fill=Measure)) +
-      geom_bar(stat="identity", position=position_dodge()) +
-      theme_minimal() +
-      theme(axis.text.x=element_blank()) +
-      scale_fill_manual("Measure",
-                        values = c("navajowhite1",
-                                   "lightsalmon1",
-                                   "lightsalmon4"),
-                        labels = c("Output-Capital Ratio",
-                                   "Profit Share",
-                                   "Rate of Profit")) +
-      labs(x="",
-           y="Average Growth Rate (%)",
-           title="Rate of Profit Decomposition",
-           subtitle=paste0("Average Rates of Growth: ",format(input$WIOT_dateStartGlobal,format="%Y")," - ",format(input$WIOT_dateEndGlobal,format="%Y")))
-  })
-  
-  ## Plot Global ROP Decomposition
-  output$WIOT_plotGlobal2 <- renderPlot({
-    WIOT_GlobalPlot2()
-  })
-  
-  output$WIOT_downloadPlot1Global <- downloadHandler(
-    filename = function(){paste0("RateOfProfit - Global.",input$WIOT_fformatGlobal)},
-    content = function(file) {
-      do.call(input$WIOT_fformatGlobal,list(file))
-      print(WIOT_GlobalPlot1())
-      dev.off()
-    })
-  
-  output$WIOT_downloadPlot2Global <- downloadHandler(
-    filename = function(){paste0("RateOfProfitDecomposition - Global.",input$WIOT_fformatGlobal)},
-    content = function(file) {
-      do.call(input$WIOT_fformatGlobal,list(file))
-      print(WIOT_GlobalPlot2())
-      dev.off()
-    })
-  
-  output$WIOT_downloadDataGlobal <- downloadHandler(
-    filename = "RateofProfit Data - Global.csv",
-    content = function(file){
-      write.table(data.WIOT.Global(), file = file, sep = ",", row.names = FALSE)
-    }
-  )
-  
-  ###################### Industry Profit Rate ########################
-  
-  output$WIOT_plot <- renderPlot({
-    ggplot(data=WIOT%>%filter(country=="USA"),
-           aes(x=as.Date(as.character(year), "%Y"), y=K)) +
-      geom_line()
-  })
-  
-  ###################### Country Profit Rate ########################
-  
-  #At the national level: just add the capital stock, profits, labor compensation, etc. into national aggregates
-  data.WIOT.Country <- reactive({
-    WIOT %>% 
-      group_by(year, Name) %>% summarize(across(c(LAB, K, CAP, VA), sum)) %>%
-      filter(format(input$WIOT_dateStartCountry,format="%Y") <= year & year <= format(input$WIOT_dateEndCountry,format="%Y"),
-             Name==input$WIOT_country) %>%
-      mutate(OCR=VA/K,
-             PS1=CAP/VA,
-             PS2=(VA-LAB)/VA,
-             ROP1=OCR*PS1,
-             ROP2=OCR*PS2,
-             labor.share=LAB/VA,
-             r.surplus.1=CAP/LAB,
-             r.surplus.2=(VA-LAB)/LAB,
-             org.comp=K/LAB,
-             Kshare=K/sum(K),
-             Yshare=VA/sum(VA))
-    
-  })
-  
-  ## Create df with average annual growth rates for OCR, PS, and ROP
-  data.WIOT.Country.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.WIOT.Country()[with(data.WIOT.Country(),order(year)),]$OCR),
-               gr_PS = avg_GR(data.WIOT.Country()[with(data.WIOT.Country(),order(year)),]$PS1),
-               gr_ROP=avg_GR(data.WIOT.Country()[with(data.WIOT.Country(),order(year)),]$ROP1))
-  })
-  
-  WIOT_CountryPlot1 <- reactive({
-    ggplot(data = data.WIOT.Country() %>%
-             select(year, ROP1), 
-           aes(x=as.Date(as.character(year), "%Y"), y=ROP1)) + 
+  IL_GlobalPlot1 <- reactive({
+    ggplot(data = data.IL.WIOD.Global(), 
+           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$WIOT_trendLineCountry]][1],
-                  formula=ui.trendLineList[[input$WIOT_trendLineCountry]][2],
+      geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                  formula=ui.trendLineList[[input$IL_trendLine]][2],
                   se=FALSE,
                   linetype="dashed") +
       labs(x="Year",
            y="Percentage",
-           title="Annual Rate of Profit",
-           subtitle=input$WIOT_country) +
+           title="Global Annual Rate of Profit",
+           subtitle=input$IL_industry) +
       theme_minimal()
   })
   
-  ## Plot Country ROP
-  output$WIOT_plotCountry1 <- renderPlot({
-    WIOT_CountryPlot1()
+  ## Plot Global ROP - output
+  output$IL_plotGlobal1 <- renderPlot({
+    IL_GlobalPlot1()
   })
   
-  WIOT_CountryPlot2 <- reactive({
-    ggplot(data = data.WIOT.Country.GR() %>%
+  ## Plot Global ROP Decomposition
+  IL_GlobalPlot2 <- reactive({
+    ggplot(data = data.IL.WIOD.Global.GR() %>%
              gather("Measure",
                     "Value"), 
            aes(x=Measure, y=Value, fill=Measure)) +
@@ -975,37 +1029,271 @@ server <- function(input, output) {
       labs(x="",
            y="Average Growth Rate (%)",
            title="Rate of Profit Decomposition",
-           subtitle=paste0("Average Rates of Growth: ",format(input$WIOT_dateStartCountry,format="%Y")," - ",format(input$WIOT_dateEndCountry,format="%Y")))
+           subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
+  })
+  
+  ## Plot Global ROP Decomposition - output
+  output$IL_plotGlobal2 <- renderPlot({
+    IL_GlobalPlot2()
+  })
+  
+  ## Download Handler for Plot 1
+  output$IL_downloadPlot1Global <- downloadHandler(
+    filename = function(){paste0("RateOfProfit - Global - ",
+                                 input$IL_industry,
+                                 ".",
+                                 input$IL_fformat)},
+    content = function(file) {
+      do.call(input$IL_fformat,list(file))
+      print(IL_GlobalPlot1())
+      dev.off()
+    })
+  
+  ## Download Handler for Plot 2
+  output$IL_downloadPlot2Global <- downloadHandler(
+    filename = function(){paste0("RateOfProfitDecomposition - Global - ",
+                                 input$IL_industry,
+                                 ".",
+                                 input$IL_fformat)},
+    content = function(file) {
+      do.call(input$IL_fformat,list(file))
+      print(IL_GlobalPlot2())
+      dev.off()
+    })
+  
+  ## Download Handler for Data
+  output$IL_downloadDataGlobal <- downloadHandler(
+    filename = function(){paste0("RateofProfit Data - Global - ",
+                                 input$IL_industry,
+                                 ".csv")},
+    content = function(file){
+      write.table(data.IL.WIOD.Global(), file = file, sep = ",", row.names = FALSE)
+    }
+  )
+  
+  ###################### Income Group Profit Rate ########################
+  
+  data.IL.WIOD.Group <- reactive({
+    na.omit(WIOD) %>% 
+      filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
+             description == input$IL_industry,
+             K!=0,
+             wb_income_group == input$IL_group) %>%
+      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
+      mutate(OCR=VA/K,
+             PS=CAP/VA,
+             ROP=100*OCR*PS,
+             Kshare=K/sum(K),
+             Yshare=VA/sum(VA)) %>% group_by(year) %>%
+      ## Compute weighted average of ROP, PS, and OCR
+      summarise(ROP=sum(ROP*Kshare),
+                PS=sum(PS*Yshare),
+                OCR=sum(OCR*Kshare))
+  })
+  
+  ## Create df with average annual growth rates for OCR, PS, and ROP
+  data.IL.WIOD.Group.GR <- reactive({
+    data.frame(gr_OCR = avg_GR(data.IL.WIOD.Group()$OCR),
+               gr_PS = avg_GR(data.IL.WIOD.Group()$PS),
+               gr_ROP=avg_GR(data.IL.WIOD.Group()$ROP))
+  })
+  
+  ## Plot Group ROP
+  IL_GroupPlot1 <- reactive({
+    ggplot(data = data.IL.WIOD.Group(), 
+           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
+      geom_line() +
+      geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                  formula=ui.trendLineList[[input$IL_trendLine]][2],
+                  se=FALSE,
+                  linetype="dashed") +
+      labs(x="Year",
+           y="Percentage",
+           title=paste0(input$CL_group, " Annual Rate of Profit"),
+           subtitle=input$IL_industry) +
+      theme_minimal()
+  })
+  
+  ## Plot Group ROP - output
+  output$IL_plotGroup1 <- renderPlot({
+    IL_GroupPlot1()
+  })
+  
+  ## Plot Group ROP Decomposition
+  IL_GroupPlot2 <- reactive({
+    ggplot(data = data.IL.WIOD.Group.GR() %>%
+             gather("Measure",
+                    "Value"), 
+           aes(x=Measure, y=Value, fill=Measure)) +
+      geom_bar(stat="identity", position=position_dodge()) +
+      theme_minimal() +
+      theme(axis.text.x=element_blank()) +
+      scale_fill_manual("Measure",
+                        values = c("navajowhite1",
+                                   "lightsalmon1",
+                                   "lightsalmon4"),
+                        labels = c("Output-Capital Ratio",
+                                   "Profit Share",
+                                   "Rate of Profit")) +
+      labs(x="",
+           y="Average Growth Rate (%)",
+           title="Rate of Profit Decomposition",
+           subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
+  })
+  
+  ## Plot Group ROP Decomposition - output
+  output$IL_plotGroup2 <- renderPlot({
+    IL_GroupPlot2()
+  })
+  
+  ## Download Handler for Plot 1
+  output$IL_downloadPlot1Group <- downloadHandler(
+    filename = function(){paste0("RateOfProfit - ",
+                                 input$IL_industry,
+                                 " - ",
+                                 input$IL_group,
+                                 ".",
+                                 input$IL_fformat)},
+    content = function(file) {
+      do.call(input$IL_fformat,list(file))
+      print(IL_GroupPlot1())
+      dev.off()
+    })
+  
+  ## Download Handler for Plot 2
+  output$IL_downloadPlot2Group <- downloadHandler(
+    filename = function(){paste0("RateOfProfitDecomposition - ",
+                                 input$IL_industry,
+                                 " - ",
+                                 input$IL_group,
+                                 ".",
+                                 input$IL_fformat)},
+    content = function(file) {
+      do.call(input$IL_fformat,list(file))
+      print(IL_GroupPlot2())
+      dev.off()
+    })
+  
+  ## Download Handler for Data
+  output$IL_downloadDataGroup <- downloadHandler(
+    filename = function(){paste0("RateofProfit Data - ",
+                                 input$IL_industry,
+                                 " - ",
+                                 input$IL_group,
+                                 ".csv")},
+    content = function(file){
+      write.table(data.IL.WIOD.Group(), file = file, sep = ",", row.names = FALSE)
+    }
+  )
+  
+  ###################### Country Profit Rate ########################
+  
+  data.IL.WIOD.Country <- reactive({
+    na.omit(WIOD) %>% 
+      filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
+             description == input$IL_industry,
+             K!=0,
+             Name == input$IL_country) %>%
+      mutate(OCR=VA/K,
+             PS=CAP/VA,
+             ROP=100*OCR*PS) %>%
+      select(year,OCR,PS,ROP)
+  })
+  
+  ## Create df with average annual growth rates for OCR, PS, and ROP
+  data.IL.WIOD.Country.GR <- reactive({
+    data.frame(gr_OCR = avg_GR(data.IL.WIOD.Country()[with(data.IL.WIOD.Country(),order(year)),]$OCR),
+               gr_PS = avg_GR(data.IL.WIOD.Country()[with(data.IL.WIOD.Country(),order(year)),]$PS),
+               gr_ROP=avg_GR(data.IL.WIOD.Country()[with(data.IL.WIOD.Country(),order(year)),]$ROP))
+  })
+  
+  ## Plot Country ROP
+  IL_CountryPlot1 <- reactive({
+    ggplot(data = data.IL.WIOD.Country(), 
+           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
+      geom_line() +
+      geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                  formula=ui.trendLineList[[input$IL_trendLine]][2],
+                  se=FALSE,
+                  linetype="dashed") +
+      labs(x="Year",
+           y="Percentage",
+           title=paste0(input$CL_country, " Annual Rate of Profit"),
+           subtitle=input$IL_industry) +
+      theme_minimal()
+  })
+  
+  ## Plot Country ROP - output
+  output$IL_plotCountry1 <- renderPlot({
+    IL_CountryPlot1()
   })
   
   ## Plot Country ROP Decomposition
-  output$WIOT_plotCountry2 <- renderPlot({
-    WIOT_CountryPlot2()
+  IL_CountryPlot2 <- reactive({
+    ggplot(data = data.IL.WIOD.Country.GR() %>%
+             gather("Measure",
+                    "Value"), 
+           aes(x=Measure, y=Value, fill=Measure)) +
+      geom_bar(stat="identity", position=position_dodge()) +
+      theme_minimal() +
+      theme(axis.text.x=element_blank()) +
+      scale_fill_manual("Measure",
+                        values = c("navajowhite1",
+                                   "lightsalmon1",
+                                   "lightsalmon4"),
+                        labels = c("Output-Capital Ratio",
+                                   "Profit Share",
+                                   "Rate of Profit")) +
+      labs(x="",
+           y="Average Growth Rate (%)",
+           title="Rate of Profit Decomposition",
+           subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
   })
   
-  output$WIOT_downloadPlot1Country <- downloadHandler(
-    filename = function(){paste0("RateOfProfit - ",input$WIOT_country,".",input$WIOT_fformatCountry)},
+  ## Plot Country ROP Decomposition - output
+  output$IL_plotCountry2 <- renderPlot({
+    IL_CountryPlot2()
+  })
+  
+  ## Download Handler for Plot 1
+  output$IL_downloadPlot1Country <- downloadHandler(
+    filename = function(){paste0("RateOfProfit - ",
+                                 input$IL_industry,
+                                 " - ",
+                                 input$IL_country,
+                                 ".",
+                                 input$IL_fformat)},
     content = function(file) {
-      do.call(input$WIOT_fformatCountry,list(file))
-      print(WIOT_CountryPlot1())
+      do.call(input$IL_fformat,list(file))
+      print(IL_CountryPlot1())
       dev.off()
     })
   
-  output$WIOT_downloadPlot2Country <- downloadHandler(
-    filename = function(){paste0("RateOfProfitDecomposition - ",input$WIOT_country,".",input$WIOT_fformatCountry)},
+  ## Download Handler for Plot 2
+  output$IL_downloadPlot2Country <- downloadHandler(
+    filename = function(){paste0("RateOfProfitDecomposition - ",
+                                 input$IL_industry,
+                                 " - ",
+                                 input$IL_country,
+                                 ".",
+                                 input$IL_fformat)},
     content = function(file) {
-      do.call(input$WIOT_fformatCountry,list(file))
-      print(WIOT_CountryPlot2())
+      do.call(input$IL_fformat,list(file))
+      print(IL_CountryPlot2())
       dev.off()
     })
   
-  output$WIOT_downloadDataCountry <- downloadHandler(
-    filename = function(){paste0("RateofProfit Data - ",input$WIOT_country,".csv")},
+  ## Download Handler for Data
+  output$IL_downloadDataCountry <- downloadHandler(
+    filename = function(){paste0("RateofProfit Data - ",
+                                 input$IL_industry,
+                                 " - ",
+                                 input$IL_country,
+                                 ".csv")},
     content = function(file){
-      write.table(data.WIOT.Country() %>%
-                    select(year,OCR,PS1,ROP1), 
-                  file = file, sep = ",", row.names = FALSE)
-    })
+      write.table(data.IL.WIOD.Country(), file = file, sep = ",", row.names = FALSE)
+    }
+  )
   
 }
 
