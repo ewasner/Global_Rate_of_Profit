@@ -1,5 +1,6 @@
 ## Libraries 
 library(tidyverse)
+options(dplyr.summarise.inform = FALSE)
 library(shiny)
 library(shinyWidgets)
 library(shinydashboard, warn.conflicts = FALSE)
@@ -70,7 +71,7 @@ WIOD <- merge(read_excel("WIOD_SEA_Nov16.xlsx",
                    sheet = "DATA") %>% suppressWarnings(),
               read_excel("WIOD_SEA_Nov16.xlsx", 
                          sheet = "Notes",
-                         skip=6)[,1:2],
+                         skip=6)[,1:2] %>% suppressMessages(),
               by.x="country",
               by.y="Acronym")
 
@@ -140,7 +141,7 @@ ui.CL_GlobalPlot1Subtitle <- list(All = "Using all available data observations",
                                LimitCountries = "Using data from countries with observations in all selected years")
 
 ## This list is used for geom_smooth() function arguments for a trend line for the main plot 
-ui.trendLineList <- list("None" = c("",""),
+ui.trendLineList <- list("None" = c("None","None"),
                          "Linear" = c("lm", "y~x"),
                          "Loess" = c("loess", "y~x"),
                          "Quadratic" = c("lm", "y~poly(x,2)"),
@@ -484,7 +485,7 @@ server <- function(input, output) {
   
   ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
   data.CL.Global <- reactive({
-    list("EPWT" = data.CL.EPWT.Global()[[input$CL_aggregate]],
+    list("EPWT" = data.CL.EPWT.Global()[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]],
          "WIOD" = data.CL.WIOD.Global())
   })
   
@@ -500,16 +501,17 @@ server <- function(input, output) {
     ggplot(data = data.CL.Global()[[input$CL_dataSource]], 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
-                  formula=ui.trendLineList[[input$CL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$CL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                    formula=ui.trendLineList[[input$CL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Percentage",
            title=paste0("Global Annual Rate of Profit"),
            subtitle=paste0(input$CL_dataSource,
                            ": ",
-                           ui.CL_GlobalPlot1Subtitle[[input$CL_aggregate]])) +
+                           ui.CL_GlobalPlot1Subtitle[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]])) +
       theme_minimal()
   })
   
@@ -548,10 +550,11 @@ server <- function(input, output) {
                     -year),
            aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
-                  formula=ui.trendLineList[[input$CL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$CL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                    formula=ui.trendLineList[[input$CL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Ratio",
            title=paste0("Rate of Profit Decomposition")) +
@@ -612,7 +615,7 @@ server <- function(input, output) {
   
   ## Group EPWT data - Using all available data observations from each year
   data.CL.EPWT.Group.All <- reactive({
-    EPWT %>% filter(wb_income_group==input$CL_group,
+    EPWT %>% filter(wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
                    format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
       group_by(year) %>% 
       ## Calculate each observation's share in global capital stock and global output
@@ -627,7 +630,7 @@ server <- function(input, output) {
   ## Group EPWT data - Using only countries which have observations in every year in the user's time selection
   data.CL.EPWT.Group.LimitCountries <- reactive({
     ## Filter for countries which have observations for every year in selected date range
-    data <- EPWT %>% filter(wb_income_group==input$CL_group,
+    data <- EPWT %>% filter(wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
                            format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
     ## Create a list of countries which have data in all years selected
     validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
@@ -652,7 +655,7 @@ server <- function(input, output) {
   data.CL.WIOD.Group <- reactive({
     WIOD %>% 
       filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"),
-             wb_income_group==input$CL_group) %>%
+             wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group}) %>%
       group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
       mutate(OCR=VA/K,
              PS=CAP/VA,
@@ -667,7 +670,7 @@ server <- function(input, output) {
   
   ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
   data.CL.Group <- reactive({
-    list("EPWT" = data.CL.EPWT.Group()[[input$CL_aggregate]],
+    list("EPWT" = data.CL.EPWT.Group()[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]],
          "WIOD" = data.CL.WIOD.Group())
   })
   
@@ -682,16 +685,17 @@ server <- function(input, output) {
     ggplot(data = data.CL.Group()[[input$CL_dataSource]], 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
-                  formula=ui.trendLineList[[input$CL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$CL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                    formula=ui.trendLineList[[input$CL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Percentage",
-           title=paste0(input$CL_group," Annual Rate of Profit"),
+           title=paste0(if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group}," Annual Rate of Profit"),
            subtitle=paste0(input$CL_dataSource,
                            ": ",
-                           ui.CL_GlobalPlot1Subtitle[[input$CL_aggregate]])) +
+                           ui.CL_GlobalPlot1Subtitle[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]])) +
       theme_minimal()
   })
   
@@ -733,7 +737,7 @@ server <- function(input, output) {
   ## Download Handler for Plot 1
   output$CL_downloadPlot1Group <- downloadHandler(
     filename = function(){str_replace(paste0("RateOfProfit - ",
-                                             input$CL_group,
+                                             if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
                                              " - ",
                                              input$CL_dataSource,
                                              ".",
@@ -748,7 +752,7 @@ server <- function(input, output) {
   ## Download Handler for Plot 2
   output$CL_downloadPlot2Group <- downloadHandler(
     filename = function(){str_replace(paste0("RateOfProfitDecomposition - ",
-                                             input$CL_group,
+                                             if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
                                              " - ",
                                              input$CL_dataSource,
                                              ".",
@@ -763,7 +767,7 @@ server <- function(input, output) {
   ## Download Handler for Data
   output$CL_downloadDataGroup <- downloadHandler(
     filename = function(){str_replace(paste0("RateofProfit Data - ",
-                                             input$CL_group,
+                                             if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
                                              " - ",
                                              input$CL_dataSource,
                                              ".csv"),
@@ -778,7 +782,7 @@ server <- function(input, output) {
   ## EPWT Data for individual country selection
   data.CL.EPWT.Country <- reactive({
     EPWT %>% 
-      filter(country==input$CL_country,
+      filter(country==if(is.null(input$CL_country)){"United States"}else{input$CL_country},
              format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
       select(year,OCR,PS,ROP)
   })
@@ -787,7 +791,7 @@ server <- function(input, output) {
   data.CL.WIOD.Country <- reactive({
     WIOD %>% 
       filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"),
-             Name==input$CL_country) %>%
+             Name==if(is.null(input$CL_country)){"United States"}else{input$CL_country}) %>%
       group_by(year, Name) %>% 
       summarize(across(c(K, CAP, VA), sum)) %>%
       mutate(OCR=VA/K,
@@ -813,13 +817,14 @@ server <- function(input, output) {
     ggplot(data = data.CL.Country()[[input$CL_dataSource]], 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
-                  formula=ui.trendLineList[[input$CL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$CL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                    formula=ui.trendLineList[[input$CL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Percentage",
-           title=paste0(input$CL_country,
+           title=paste0(if(is.null(input$CL_country)){"United States"}else{input$CL_country},
                         " Annual Rate of Profit"),
            subtitle=input$CL_dataSource) +
       theme_minimal()
@@ -863,7 +868,7 @@ server <- function(input, output) {
   ## Download Handler for Plot 1
   output$CL_downloadPlot1Country <- downloadHandler(
     filename = function(){paste0("RateOfProfit - ",
-                                 input$CL_country,
+                                 if(is.null(input$CL_country)){"United States"}else{input$CL_country},
                                  " - ",
                                  input$CL_dataSource,
                                  ".",
@@ -877,7 +882,7 @@ server <- function(input, output) {
   ## Download Handler for Plot 2
   output$CL_downloadPlot2Country <- downloadHandler(
     filename = function(){paste0("RateOfProfitDecomposition - ",
-                                 input$CL_country,
+                                 if(is.null(input$CL_country)){"United States"}else{input$CL_country},
                                  " - ",
                                  input$CL_dataSource,
                                  ".",
@@ -891,7 +896,7 @@ server <- function(input, output) {
   ## Download Handler for Data
   output$CL_downloadDataCountry <- downloadHandler(
     filename = function(){paste0("RateofProfit Data - ",
-                                 input$CL_country,
+                                 if(is.null(input$CL_country)){"United States"}else{input$CL_country},
                                  " - ",
                                  input$CL_dataSource,
                                  ".csv")},
@@ -907,7 +912,7 @@ server <- function(input, output) {
   output$CL_WIODcountryText <- renderText({"The selected country is not available in the WIOD data set. The table below displays the countries available within each data source:"})
   output$CL_WIODcountryTable <- renderTable({ui.CL_CountriesTable},sanitize.text.function = identity)
   output$CL_countryMainPanel <- renderUI({
-    if(input$CL_dataSource == "WIOD" & !(input$CL_country %in% unique(WIOD$Name))){
+    if(input$CL_dataSource == "WIOD" & !((if(is.null(input$CL_country)){"United States"}else{input$CL_country}) %in% unique(WIOD$Name))){
       list(
         textOutput("CL_WIODcountryText"),
         br(),
@@ -994,10 +999,11 @@ server <- function(input, output) {
     ggplot(data = data.IL.WIOD.Global(), 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
-                  formula=ui.trendLineList[[input$IL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$IL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                    formula=ui.trendLineList[[input$IL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Percentage",
            title="Global Annual Rate of Profit",
@@ -1078,7 +1084,7 @@ server <- function(input, output) {
       filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
              description == input$IL_industry,
              K!=0,
-             wb_income_group == input$IL_group) %>%
+             wb_income_group == if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group}) %>%
       group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
       mutate(OCR=VA/K,
              PS=CAP/VA,
@@ -1103,13 +1109,14 @@ server <- function(input, output) {
     ggplot(data = data.IL.WIOD.Group(), 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
-                  formula=ui.trendLineList[[input$IL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$IL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                    formula=ui.trendLineList[[input$IL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Percentage",
-           title=paste0(input$CL_group, " Annual Rate of Profit"),
+           title=paste0(if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group}, " Annual Rate of Profit"),
            subtitle=input$IL_industry) +
       theme_minimal()
   })
@@ -1151,7 +1158,7 @@ server <- function(input, output) {
     filename = function(){paste0("RateOfProfit - ",
                                  input$IL_industry,
                                  " - ",
-                                 input$IL_group,
+                                 if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group},
                                  ".",
                                  input$IL_fformat)},
     content = function(file) {
@@ -1165,7 +1172,7 @@ server <- function(input, output) {
     filename = function(){paste0("RateOfProfitDecomposition - ",
                                  input$IL_industry,
                                  " - ",
-                                 input$IL_group,
+                                 if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group},
                                  ".",
                                  input$IL_fformat)},
     content = function(file) {
@@ -1179,7 +1186,7 @@ server <- function(input, output) {
     filename = function(){paste0("RateofProfit Data - ",
                                  input$IL_industry,
                                  " - ",
-                                 input$IL_group,
+                                 if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group},
                                  ".csv")},
     content = function(file){
       write.table(data.IL.WIOD.Group(), file = file, sep = ",", row.names = FALSE)
@@ -1193,7 +1200,7 @@ server <- function(input, output) {
       filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
              description == input$IL_industry,
              K!=0,
-             Name == input$IL_country) %>%
+             Name == if(is.null(input$IL_country)){"United States"}else{input$IL_country}) %>%
       mutate(OCR=VA/K,
              PS=CAP/VA,
              ROP=100*OCR*PS) %>%
@@ -1212,13 +1219,14 @@ server <- function(input, output) {
     ggplot(data = data.IL.WIOD.Country(), 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
-      geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
-                  formula=ui.trendLineList[[input$IL_trendLine]][2],
-                  se=FALSE,
-                  linetype="dashed") +
+      {if(input$IL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                    formula=ui.trendLineList[[input$IL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
       labs(x="Year",
            y="Percentage",
-           title=paste0(input$CL_country, " Annual Rate of Profit"),
+           title=paste0(if(is.null(input$IL_country)){"United States"}else{input$IL_country}, " Annual Rate of Profit"),
            subtitle=input$IL_industry) +
       theme_minimal()
   })
@@ -1260,7 +1268,7 @@ server <- function(input, output) {
     filename = function(){paste0("RateOfProfit - ",
                                  input$IL_industry,
                                  " - ",
-                                 input$IL_country,
+                                 if(is.null(input$IL_country)){"United States"}else{input$IL_country},
                                  ".",
                                  input$IL_fformat)},
     content = function(file) {
@@ -1274,7 +1282,7 @@ server <- function(input, output) {
     filename = function(){paste0("RateOfProfitDecomposition - ",
                                  input$IL_industry,
                                  " - ",
-                                 input$IL_country,
+                                 if(is.null(input$IL_country)){"United States"}else{input$IL_country},
                                  ".",
                                  input$IL_fformat)},
     content = function(file) {
@@ -1288,7 +1296,7 @@ server <- function(input, output) {
     filename = function(){paste0("RateofProfit Data - ",
                                  input$IL_industry,
                                  " - ",
-                                 input$IL_country,
+                                 if(is.null(input$IL_country)){"United States"}else{input$IL_country},
                                  ".csv")},
     content = function(file){
       write.table(data.IL.WIOD.Country(), file = file, sep = ",", row.names = FALSE)
