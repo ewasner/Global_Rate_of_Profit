@@ -245,12 +245,7 @@ ui <- dashboardPage(
                     ###################### Group Profit Rate ########################
                     
                     tabPanel("By Group",
-                             plotOutput("CL_plotGroup1"),
-                             div(downloadButton("CL_downloadPlot1Group", "Download Plot 1"),style="float:right"),
-                             br(),
-                             br(),
-                             plotOutput("CL_plotGroup2"),
-                             div(downloadButton("CL_downloadPlot2Group", "Download Plot 2"),style="float:right")
+                             uiOutput("CL_groupMainPanel")
                     ), ## tabPanel (Group)
                     
                     ###################### Country Profit Rate ########################
@@ -332,17 +327,6 @@ ui <- dashboardPage(
                              br(),
                              plotOutput("IL_plotGlobal2"),
                              div(downloadButton("IL_downloadPlot2Global", "Download Plot 2"),style="float:right")
-                    ),
-                    
-                    ###################### Group Profit Rate ########################
-                    
-                    tabPanel("By Group",
-                             plotOutput("IL_plotGroup1"),
-                             div(downloadButton("IL_downloadPlot1Group", "Download Plot 1"),style="float:right"),
-                             br(),
-                             br(),
-                             plotOutput("IL_plotGroup2"),
-                             div(downloadButton("IL_downloadPlot2Group", "Download Plot 2"),style="float:right")
                     ),
                     
                     ###################### Country Profit Rate ########################
@@ -656,38 +640,20 @@ server <- function(input, output) {
          LimitCountries=data.CL.EPWT.Group.LimitCountries())
   })
   
-  ## Create WIOD data
-  data.CL.WIOD.Group <- reactive({
-    WIOD %>% 
-      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"),
-             wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group}) %>%
-      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
-      mutate(OCR=VA/K,
-             PS=CAP/VA,
-             ROP=100*OCR*PS,
-             Kshare=K/sum(K),
-             Yshare=VA/sum(VA)) %>% group_by(year) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
-  })
-  
   ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
   data.CL.Group <- reactive({
-    list("EPWT" = data.CL.EPWT.Group()[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]],
-         "WIOD" = data.CL.WIOD.Group())
+    data.CL.EPWT.Group()[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]]
   })
   
   ## Create df with average annual growth rates for OCR, PS, and ROP
   data.CL.Group.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.CL.Group()[[input$CL_dataSource]]$OCR),
-               gr_PS = avg_GR(data.CL.Group()[[input$CL_dataSource]]$PS),
-               gr_ROP=avg_GR(data.CL.Group()[[input$CL_dataSource]]$ROP))
+    data.frame(gr_OCR = avg_GR(data.CL.Group()$OCR),
+               gr_PS = avg_GR(data.CL.Group()$PS),
+               gr_ROP=avg_GR(data.CL.Group()$ROP))
   })
   
   CL_GroupPlot1 <- reactive({
-    ggplot(data = data.CL.Group()[[input$CL_dataSource]], 
+    ggplot(data = data.CL.Group(), 
            aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
       geom_line() +
       {if(input$CL_trendLine[[1]]!="None")
@@ -735,7 +701,7 @@ server <- function(input, output) {
   })
   
   CL_GroupPlot2TimeSeries <- reactive({
-    ggplot(data = data.CL.Group()[[input$CL_dataSource]] %>%
+    ggplot(data = data.CL.Group() %>%
              select(year,OCR,PS) %>%
              gather("Measure",
                     "Value",
@@ -807,9 +773,27 @@ server <- function(input, output) {
                                              ".csv"),
                                       ":"," -")},
     content = function(file){
-      write.table(data.CL.Group()[[input$CL_dataSource]], file = file, sep = ",", row.names = FALSE)
+      write.table(data.CL.Group(), file = file, sep = ",", row.names = FALSE)
     }
   )
+  
+  ## If the user has selected the WIOD data source, display text which explains
+  ## aggregation by income group is only available for the EPWT. 
+  ## Otherwise display the proper plots and download buttons
+  output$CL_WIODgroupText <- renderText({"Aggregation by income group is only available for the EPWT data set due to the limited number of countries contained within the WIOD data set."})
+  output$CL_groupMainPanel <- renderUI({
+    if(input$CL_dataSource == "WIOD"){
+      textOutput("CL_WIODgroupText")
+    } else{
+      list(
+        plotOutput("CL_plotGroup1"),
+        div(downloadButton("CL_downloadPlot1Group", "Download Plot 1"),style="float:right"),
+        br(),
+        br(),
+        plotOutput("CL_plotGroup2"),
+        div(downloadButton("CL_downloadPlot2Group", "Download Plot 2"),style="float:right"))
+    }
+  })
   
   ###################### Individual Country Profit Rate ########################
 
@@ -1166,152 +1150,6 @@ server <- function(input, output) {
                                  ".csv")},
     content = function(file){
       write.table(data.IL.WIOD.Global(), file = file, sep = ",", row.names = FALSE)
-    }
-  )
-  
-  ###################### Income Group Profit Rate ########################
-  
-  data.IL.WIOD.Group <- reactive({
-    na.omit(WIOD) %>% 
-      filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
-             description == input$IL_industry,
-             K!=0,
-             wb_income_group == if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group}) %>%
-      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
-      mutate(OCR=VA/K,
-             PS=CAP/VA,
-             ROP=100*OCR*PS,
-             Kshare=K/sum(K),
-             Yshare=VA/sum(VA)) %>% group_by(year) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
-  })
-  
-  ## Create df with average annual growth rates for OCR, PS, and ROP
-  data.IL.WIOD.Group.GR <- reactive({
-    data.frame(gr_OCR = avg_GR(data.IL.WIOD.Group()$OCR),
-               gr_PS = avg_GR(data.IL.WIOD.Group()$PS),
-               gr_ROP=avg_GR(data.IL.WIOD.Group()$ROP))
-  })
-  
-  ## Plot Group ROP
-  IL_GroupPlot1 <- reactive({
-    ggplot(data = data.IL.WIOD.Group(), 
-           aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
-      geom_line() +
-      {if(input$IL_trendLine[[1]]!="None")
-        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
-                    formula=ui.trendLineList[[input$IL_trendLine]][2],
-                    se=FALSE,
-                    linetype="dashed")} +
-      labs(x="Year",
-           y="Percentage",
-           title=paste0(if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group}, " Annual Rate of Profit"),
-           subtitle=input$IL_industry) +
-      theme_minimal()
-  })
-  
-  ## Plot Group ROP - output
-  output$IL_plotGroup1 <- renderPlot({
-    IL_GroupPlot1()
-  })
-  
-  ## Plot Group ROP Decomposition
-  IL_GroupPlot2Histogram <- reactive({
-    ggplot(data = data.IL.WIOD.Group.GR() %>%
-             gather("Measure",
-                    "Value"), 
-           aes(x=Measure, y=Value, fill=Measure)) +
-      geom_bar(stat="identity", position=position_dodge()) +
-      theme_minimal() +
-      theme(axis.text.x=element_blank()) +
-      scale_fill_manual("Measure",
-                        values = c("navajowhite1",
-                                   "lightsalmon1",
-                                   "lightsalmon4"),
-                        labels = c("Output-Capital Ratio",
-                                   "Profit Share",
-                                   "Rate of Profit")) +
-      labs(x="",
-           y="Average Growth Rate (%)",
-           title="Rate of Profit Decomposition",
-           subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
-  })
-  
-  IL_GroupPlot2TimeSeries <- reactive({
-    ggplot(data = data.IL.WIOD.Group() %>%
-             select(year,OCR,PS) %>%
-             gather("Measure",
-                    "Value",
-                    -year),
-           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
-      geom_line() +
-      {if(input$IL_trendLine[[1]]!="None")
-        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
-                    formula=ui.trendLineList[[input$IL_trendLine]][2],
-                    se=FALSE,
-                    linetype="dashed")} +
-      labs(x="Year",
-           y="Ratio",
-           title=paste0("Rate of Profit Decomposition")) +
-      scale_color_discrete(labels = c("Output-Capital Ratio",
-                                      "Profit Share")) +
-      theme_minimal()
-  })
-  
-  ## Plot Group ROP Decomposition - output
-  output$IL_plotGroup2 <- renderPlot({
-    if(input$IL_plot2Type=="histogram"){
-      IL_GroupPlot2Histogram()
-    } else{
-      IL_GroupPlot2TimeSeries()
-    }
-  })
-  
-  ## Download Handler for Plot 1
-  output$IL_downloadPlot1Group <- downloadHandler(
-    filename = function(){paste0("RateOfProfit - ",
-                                 input$IL_industry,
-                                 " - ",
-                                 if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group},
-                                 ".",
-                                 input$IL_fformat)},
-    content = function(file) {
-      do.call(input$IL_fformat,list(file))
-      print(IL_GroupPlot1())
-      dev.off()
-    })
-  
-  ## Download Handler for Plot 2
-  output$IL_downloadPlot2Group <- downloadHandler(
-    filename = function(){paste0("RateOfProfitDecomposition - ",
-                                 input$IL_industry,
-                                 " - ",
-                                 if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group},
-                                 ".",
-                                 input$IL_fformat)},
-    content = function(file) {
-      do.call(input$IL_fformat,list(file))
-      if(input$IL_plot2Type=="histogram"){
-        print(IL_GroupPlot2Histogram())
-      } else{
-        print(IL_GroupPlot2TimeSeries())
-      }
-      dev.off()
-      dev.off()
-    })
-  
-  ## Download Handler for Data
-  output$IL_downloadDataGroup <- downloadHandler(
-    filename = function(){paste0("RateofProfit Data - ",
-                                 input$IL_industry,
-                                 " - ",
-                                 if(is.null(input$IL_group)){"High income: OECD"}else{input$IL_group},
-                                 ".csv")},
-    content = function(file){
-      write.table(data.IL.WIOD.Group(), file = file, sep = ",", row.names = FALSE)
     }
   )
   
