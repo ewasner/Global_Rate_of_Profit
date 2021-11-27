@@ -309,6 +309,11 @@ ui <- dashboardPage(
                                 "Quadratic Trend" = "Quadratic",
                                 "Cubic Trend" = "Cubic")),
                   
+                  selectInput(inputId = "IL_plot2Type",
+                              label = "Display ROP Decomposition as:",
+                              choices = c("Histogram of Average Rates" = "histogram",
+                                          "Time-Series" = "timeSeries")),
+                  
                   wellPanel(
                     selectInput("IL_fformat", "Download Plot File Type", choices=c("png","tiff","jpeg","pdf")),
                     uiOutput("IL_downloadData")
@@ -705,7 +710,7 @@ server <- function(input, output) {
   })
   
   ## Plot Group ROP Decomposition
-  CL_GroupPlot2 <- reactive({
+  CL_GroupPlot2Histogram <- reactive({
     ggplot(data = data.CL.Group.GR() %>%
              gather("Measure",
                     "Value"), 
@@ -729,9 +734,34 @@ server <- function(input, output) {
                            format(input$CL_dateEnd,format="%Y")))
   })
   
+  CL_GroupPlot2TimeSeries <- reactive({
+    ggplot(data = data.CL.Group()[[input$CL_dataSource]] %>%
+             select(year,OCR,PS) %>%
+             gather("Measure",
+                    "Value",
+                    -year),
+           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+      geom_line() +
+      {if(input$CL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                    formula=ui.trendLineList[[input$CL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
+      labs(x="Year",
+           y="Ratio",
+           title=paste0("Rate of Profit Decomposition")) +
+      scale_color_discrete(labels = c("Output-Capital Ratio",
+                                      "Profit Share")) +
+      theme_minimal()
+  })
+  
   ## Plot Group ROP Decomposition
   output$CL_plotGroup2 <- renderPlot({
-    CL_GroupPlot2()
+    if(input$CL_plot2Type=="histogram"){
+      CL_GroupPlot2Histogram()
+    } else{
+      CL_GroupPlot2TimeSeries()
+    }
   })
   
   ## Download Handler for Plot 1
@@ -760,7 +790,11 @@ server <- function(input, output) {
                                       ":"," -")},
     content = function(file) {
       do.call(input$CL_fformat,list(file))
-      print(CL_GroupPlot2())
+      if(input$CL_plot2Type=="histogram"){
+        print(CL_GroupPlot2Histogram())
+      } else{
+        print(CL_GroupPlot2TimeSeries())
+      }
       dev.off()
     })
   
@@ -836,7 +870,7 @@ server <- function(input, output) {
   })
   
   ## Plot Country ROP Decomposition
-  CL_CountryPlot2 <- reactive({
+  CL_CountryPlot2Histogram <- reactive({
     ggplot(data = data.CL.Country.GR() %>%
              gather("Measure",
                     "Value"), 
@@ -859,10 +893,35 @@ server <- function(input, output) {
                            " - ",
                            format(input$CL_dateEnd,format="%Y")))
   })
+  
+  CL_CountryPlot2TimeSeries <- reactive({
+    ggplot(data = data.CL.Country()[[input$CL_dataSource]] %>%
+             select(year,OCR,PS) %>%
+             gather("Measure",
+                    "Value",
+                    -year),
+           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+      geom_line() +
+      {if(input$CL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$CL_trendLine]][1],
+                    formula=ui.trendLineList[[input$CL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
+      labs(x="Year",
+           y="Ratio",
+           title=paste0("Rate of Profit Decomposition")) +
+      scale_color_discrete(labels = c("Output-Capital Ratio",
+                                      "Profit Share")) +
+      theme_minimal()
+  })
 
   ## Plot Country ROP Decomposition - output
   output$CL_plotCountry2 <- renderPlot({
-    CL_CountryPlot2()
+    if(input$CL_plot2Type=="histogram"){
+      CL_CountryPlot2Histogram()
+    } else{
+      CL_CountryPlot2TimeSeries()
+    }
   })
   
   ## Download Handler for Plot 1
@@ -889,7 +948,11 @@ server <- function(input, output) {
                                  input$CL_fformat)},
     content = function(file) {
       do.call(input$CL_fformat,list(file))
-      print(CL_CountryPlot2())
+      if(input$CL_plot2Type=="histogram"){
+        print(CL_CountryPlot2Histogram())
+      } else{
+        print(CL_CountryPlot2TimeSeries())
+      }
       dev.off()
     })
   
@@ -1017,7 +1080,7 @@ server <- function(input, output) {
   })
   
   ## Plot Global ROP Decomposition
-  IL_GlobalPlot2 <- reactive({
+  IL_GlobalPlot2Histogram <- reactive({
     ggplot(data = data.IL.WIOD.Global.GR() %>%
              gather("Measure",
                     "Value"), 
@@ -1038,9 +1101,34 @@ server <- function(input, output) {
            subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
   })
   
+  IL_GlobalPlot2TimeSeries <- reactive({
+    ggplot(data = data.IL.WIOD.Global() %>%
+             select(year,OCR,PS) %>%
+             gather("Measure",
+                    "Value",
+                    -year),
+           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+      geom_line() +
+      {if(input$IL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                    formula=ui.trendLineList[[input$IL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
+      labs(x="Year",
+           y="Ratio",
+           title=paste0("Rate of Profit Decomposition")) +
+      scale_color_discrete(labels = c("Output-Capital Ratio",
+                                      "Profit Share")) +
+      theme_minimal()
+  })
+  
   ## Plot Global ROP Decomposition - output
   output$IL_plotGlobal2 <- renderPlot({
-    IL_GlobalPlot2()
+    if(input$IL_plot2Type=="histogram"){
+      IL_GlobalPlot2Histogram()
+    } else{
+      IL_GlobalPlot2TimeSeries()
+    }
   })
   
   ## Download Handler for Plot 1
@@ -1063,7 +1151,11 @@ server <- function(input, output) {
                                  input$IL_fformat)},
     content = function(file) {
       do.call(input$IL_fformat,list(file))
-      print(IL_GlobalPlot2())
+      if(input$IL_plot2Type=="histogram"){
+        print(IL_GlobalPlot2Histogram())
+      } else{
+        print(IL_GlobalPlot2TimeSeries())
+      }
       dev.off()
     })
   
@@ -1127,7 +1219,7 @@ server <- function(input, output) {
   })
   
   ## Plot Group ROP Decomposition
-  IL_GroupPlot2 <- reactive({
+  IL_GroupPlot2Histogram <- reactive({
     ggplot(data = data.IL.WIOD.Group.GR() %>%
              gather("Measure",
                     "Value"), 
@@ -1148,9 +1240,34 @@ server <- function(input, output) {
            subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
   })
   
+  IL_GroupPlot2TimeSeries <- reactive({
+    ggplot(data = data.IL.WIOD.Group() %>%
+             select(year,OCR,PS) %>%
+             gather("Measure",
+                    "Value",
+                    -year),
+           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+      geom_line() +
+      {if(input$IL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                    formula=ui.trendLineList[[input$IL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
+      labs(x="Year",
+           y="Ratio",
+           title=paste0("Rate of Profit Decomposition")) +
+      scale_color_discrete(labels = c("Output-Capital Ratio",
+                                      "Profit Share")) +
+      theme_minimal()
+  })
+  
   ## Plot Group ROP Decomposition - output
   output$IL_plotGroup2 <- renderPlot({
-    IL_GroupPlot2()
+    if(input$IL_plot2Type=="histogram"){
+      IL_GroupPlot2Histogram()
+    } else{
+      IL_GroupPlot2TimeSeries()
+    }
   })
   
   ## Download Handler for Plot 1
@@ -1177,7 +1294,12 @@ server <- function(input, output) {
                                  input$IL_fformat)},
     content = function(file) {
       do.call(input$IL_fformat,list(file))
-      print(IL_GroupPlot2())
+      if(input$IL_plot2Type=="histogram"){
+        print(IL_GroupPlot2Histogram())
+      } else{
+        print(IL_GroupPlot2TimeSeries())
+      }
+      dev.off()
       dev.off()
     })
   
@@ -1237,7 +1359,7 @@ server <- function(input, output) {
   })
   
   ## Plot Country ROP Decomposition
-  IL_CountryPlot2 <- reactive({
+  IL_CountryPlot2Histogram <- reactive({
     ggplot(data = data.IL.WIOD.Country.GR() %>%
              gather("Measure",
                     "Value"), 
@@ -1258,9 +1380,34 @@ server <- function(input, output) {
            subtitle=paste0("Average Rates of Growth: ",format(input$IL_dateStart,format="%Y")," - ",format(input$IL_dateEnd,format="%Y")))
   })
   
+  IL_CountryPlot2TimeSeries <- reactive({
+    ggplot(data = data.IL.WIOD.Country() %>%
+             select(year,OCR,PS) %>%
+             gather("Measure",
+                    "Value",
+                    -year),
+           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+      geom_line() +
+      {if(input$IL_trendLine[[1]]!="None")
+        geom_smooth(method=ui.trendLineList[[input$IL_trendLine]][1],
+                    formula=ui.trendLineList[[input$IL_trendLine]][2],
+                    se=FALSE,
+                    linetype="dashed")} +
+      labs(x="Year",
+           y="Ratio",
+           title=paste0("Rate of Profit Decomposition")) +
+      scale_color_discrete(labels = c("Output-Capital Ratio",
+                                      "Profit Share")) +
+      theme_minimal()
+  })
+  
   ## Plot Country ROP Decomposition - output
   output$IL_plotCountry2 <- renderPlot({
-    IL_CountryPlot2()
+    if(input$IL_plot2Type=="histogram"){
+      IL_CountryPlot2Histogram()
+    } else{
+      IL_CountryPlot2TimeSeries()
+    }
   })
   
   ## Download Handler for Plot 1
@@ -1287,7 +1434,11 @@ server <- function(input, output) {
                                  input$IL_fformat)},
     content = function(file) {
       do.call(input$IL_fformat,list(file))
-      print(IL_CountryPlot2())
+      if(input$IL_plot2Type=="histogram"){
+        print(IL_CountryPlot2Histogram())
+      } else{
+        print(IL_CountryPlot2TimeSeries())
+      }
       dev.off()
     })
   
