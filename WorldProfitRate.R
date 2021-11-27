@@ -121,10 +121,8 @@ avg_GR <- function(x){
   if(length(x)>2){
     # If 3 or more observations, estimate regression
     d <- cbind(x,1:length(x))
-    g <- coef(lm(d[,1] ~ d[,2]))[2]
-    gwth <- ifelse(mean(x,na.rm = TRUE)>0,
-                   100*(g/mean(x,na.rm = TRUE)),
-                   NA)
+    g <- coef(lm(log(d[,1]) ~ d[,2]))[2]
+    gwth <- 100*g
   }else{
     # If fewer than 3 observations, compute growth rate directly
     gwth <- 100*((x[2]-x[1])/abs(x[1]))
@@ -132,7 +130,6 @@ avg_GR <- function(x){
   # Return value
   return(gwth)
 }
-
 
 ######################### Shiny Code ####################################
 
