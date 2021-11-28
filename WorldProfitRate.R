@@ -358,7 +358,7 @@ server <- function(input, output) {
   
   ## Conditional Panel to display
   output$CL_conditionalPanel1 <- renderUI({
-    if(input$CL_tab=="Global" | input$CL_tab=="By Group"){
+    if((input$CL_tab=="Global" | input$CL_tab=="By Group") & input$CL_dataSource=="EPWT"){
       selectInput(inputId = "CL_aggregate", ## Choose method for aggregating data
                   label = "Method to compute Aggregates:",
                   choices = c("Use all available data observations" = "All",
@@ -495,9 +495,11 @@ server <- function(input, output) {
       labs(x="Year",
            y="Percentage",
            title=paste0("Global Annual Rate of Profit"),
-           subtitle=paste0(input$CL_dataSource,
-                           ": ",
-                           ui.CL_GlobalPlot1Subtitle[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]])) +
+           subtitle=ifelse(input$CL_dataSource=="EPWT",
+                           paste0(input$CL_dataSource,
+                                  ": ",
+                                  ui.CL_GlobalPlot1Subtitle[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]]),
+                           input$CL_dataSource)) +
       theme_minimal()
   })
   
