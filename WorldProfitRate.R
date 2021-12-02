@@ -16,12 +16,16 @@ rm(list = ls())
 ###################### Import Exchange Rates, PPP Indices, & Income Group Classes #############
 
 ## Exchange rate data
-XR <- read_excel("Nominal_Exchange_Rates.xls",
-                 sheet = "Data",
-                 skip = 3) %>%
-  pivot_longer("1960":"2020","year", values_to="value") %>%
-  select(`Country Code`, year, value) %>%
-  rename(countrycode = `Country Code`, XR = value)
+# XR <- read_excel("Nominal_Exchange_Rates.xls",
+#                  sheet = "Data",
+#                  skip = 3) %>%
+#   pivot_longer("1960":"2020","year", values_to="value") %>%
+#   select(`Country Code`, year, value) %>%
+#   rename(countrycode = `Country Code`, XR = value)
+XR <- read.csv("Exchange_Rates_OECD.csv", fileEncoding = 'UTF-8-BOM') %>% 
+  rename(countrycode=LOCATION,year=TIME,XR=Value) %>%
+  select(countrycode,year,XR) %>%
+  filter(XR!=0)
 
 ## PPP Data
 OECD_PPP <- read.csv("OECD_PPP.csv", fileEncoding = 'UTF-8-BOM') %>%
