@@ -13,21 +13,42 @@ rm(list = ls())
 ## Needs to be changed for server
 ## setwd("I:/Evan/Documents/Umass/RA - Deepankar Fall 2021/Global Rate of Profit/Global_Rate_of_Profit")
 
+###################### Import Exchange Rates, PPP Indices, & Income Group Classes #############
+
+## Exchange rate data
+XR <- read_excel("Nominal_Exchange_Rates.xls",
+                 sheet = "Data",
+                 skip = 3) %>%
+  pivot_longer("1960":"2020","year", values_to="value") %>%
+  select(`Country Code`, year, value) %>%
+  rename(countrycode = `Country Code`, XR = value)
+
+## PPP Data
+OECD_PPP <- read.csv("OECD_PPP.csv", fileEncoding = 'UTF-8-BOM') %>%
+  select(LOCATION,TIME,Value) %>%
+  rename(countrycode=LOCATION,year=TIME,PPP=Value)
+
+## World Bank Income Group Classifications
+class <- read.csv("dh_country_class.csv") %>% 
+  select(countrycode,wb_income_group) 
+
 ###################### Collect & Manipulate Data From EPWT Spreadsheet ######################
+
 ## Read from .csv file
 EPWT <- read_excel("EPWT 7.0 Preliminary.xlsx",
                   sheet = "EPWT7.0")
-class <- read.csv("dh_country_class.csv") # For World Bank Income Group Categorization
 
 ## Remove na values from EPWT, select relevant variables, and
 ## calculate Profit share (PS), Output-Capital Ratio (OCR), and Rate of Profit (ROP)
-EPWT <- na.omit(EPWT %>% select(countrycode, country, year, LabShare, rhonatcur, Kppp2017, XGDPppp2017) %>%
+EPWT <- na.omit(EPWT %>% select(countrycode, country, year, LabShare, rhonatcur, Knatcur, XGDPnatcur) %>%
                  filter(year > 1949)) %>%
-  rename(Y=XGDPppp2017, K=Kppp2017, OCR=rhonatcur) %>%
-  mutate(PS = 1-LabShare, ROP = 100 * PS * OCR)
+  rename(Y=XGDPnatcur, K=Knatcur, OCR=rhonatcur) %>%
+  mutate(PS = 1-LabShare, Profit=PS*Y, ROP = 100 * PS * OCR)
 
-## Merge EPWT with WB income group categories
-EPWT <- merge(EPWT, class %>% select(countrycode,wb_income_group), by="countrycode", all.x=TRUE)
+## Merge EPWT with WB income group categories, PPPs, and exchange rates (XR)
+EPWT <- merge(EPWT, class, all.x=TRUE) %>%
+  merge(OECD_PPP, all.x=TRUE) %>%
+  merge(XR, all.x=TRUE)
 
 
 ###################### Collect & Manipulate Data From WIOD Spreadsheet ######################
@@ -68,50 +89,38 @@ EPWT <- merge(EPWT, class %>% select(countrycode,wb_income_group), by="countryco
 
 ## Import Socioeconomic accounts, include extended country names from Notes sheet
 WIOD <- merge(read_excel("WIOD_SEA_Nov16.xlsx", 
-                   sheet = "DATA") %>% suppressWarnings(),
+                   sheet = "DATA") %>% 
+                rename(countrycode=country) %>% 
+                suppressWarnings(),
               read_excel("WIOD_SEA_Nov16.xlsx", 
                          sheet = "Notes",
-                         skip=6)[,1:2] %>% suppressMessages(),
-              by.x="country",
-              by.y="Acronym")
+                         skip=6)[,1:2] %>% 
+                rename(countrycode=Acronym, country=Name) %>% 
+                suppressMessages())
 
 ## Change name for United Kingdom to be consistent with EPWT
-WIOD[WIOD$country=="GBR","Name"] <- "United Kingdom"
+WIOD[WIOD$countrycode=="GBR","country"] <- "United Kingdom"
 
 ## Get rid of Taiwan, since there is no PPP data available
-WIOD <- WIOD[WIOD$country!="TWN",]
+WIOD <- WIOD[WIOD$countrycode!="TWN",]
 
 ## Melt year columns into one
-WIOD <- WIOD %>% pivot_longer("2000":"2014","year", values_to="value")
+WIOD <- WIOD %>% pivot_longer("2000":"2014","year", values_to="value") 
 
-## Import PPP data, merge into WIOD, convert values, and drop the PPP column
-OECD_PPP <- read.csv("OECD_PPP.csv", fileEncoding = 'UTF-8-BOM') %>%
-  select(LOCATION,TIME,Value) %>%
-  rename(country=LOCATION,year=TIME,PPP=Value)
+## Merge PPP data into WIOD, convert values, and drop the PPP column
 WIOD <- merge(WIOD, 
               OECD_PPP) %>%
-  mutate(value = value / PPP) %>%
-  select(-PPP)
+  merge(XR)
 
 ## Unmelt variable column into several columns
-WIOD <- WIOD %>% pivot_wider(names_from = 'variable')
+WIOD <- WIOD %>% pivot_wider(names_from = 'variable') %>%
+  rename(Y=VA,
+         Profit=CAP)
 
 ## Calculate relevant variables at the industry level:
-WIOD <- WIOD %>% mutate(OCR=VA/K,
-                        PS1=CAP/VA,
-                        PS2=(VA-LAB)/VA,
-                        ROP1=OCR*PS1,
-                        ROP2=OCR*PS2,
-                        labor.share=LAB/VA,
-                        r.surplus.1=CAP/LAB,
-                        r.surplus.2=(VA-LAB)/LAB,
-                        org.comp=K/LAB)
-
-## Merge WIOD with WB income group categories
-WIOD <- merge(WIOD, 
-              class %>% select(countrycode,wb_income_group), 
-              by.x="country", by.y="countrycode", all.x=TRUE)
-
+WIOD <- WIOD %>% mutate(OCR=Y/K,
+                        PS=Profit/Y,
+                        ROP=100*PS*OCR)
 
 ###################### Define Necessary Functions ########################################## 
 
@@ -131,8 +140,23 @@ avg_GR <- function(x){
   return(gwth)
 }
 
+## Function which converts capital stocks and value added to USD using either PPPs or XRs
+currencyConversion <- function(data, conversionFactor){
+  if(conversionFactor=="PPP"){
+    mutate(data[!is.na(data$PPP),],
+           K=K/PPP,
+           Y=Y/PPP,
+           Profit=Profit/PPP)
+  } else{
+    mutate(data[!is.na(data$XR),],
+           K=K/XR,
+           Y=Y/XR,
+           Profit=Profit/XR)
+  }
+}
+
 ## Function which creates a graph for rate of profit (Plot 1)
-plot1 <- function(data, aggregateLevel, dataSource, aggregateType, trendLine){
+plot1 <- function(data, numCountries, aggregateLevel, dataSource, aggregateType, trendLine){
   ggplot(data=data,
          aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
     geom_line() + 
@@ -145,14 +169,18 @@ plot1 <- function(data, aggregateLevel, dataSource, aggregateType, trendLine){
          y="Percentage",
          title=paste0(aggregateLevel,
                       " Annual Rate of Profit"),
-         subtitle=if(dataSource=="EPWT"&aggregateType!="Country"){
+         subtitle=if(aggregateType %in% c("All","LimitCountries")){
            paste0(dataSource,
                   ": ",
-                  ui.CL_GlobalPlot1Subtitle[[aggregateType]])
+                  as.character(numCountries),
+                  " countries")
          }
-         else if(dataSource=="EPWT"&aggregateType=="Country"){dataSource}
-         else if(aggregateType %in% c("All","LimitCountries","Country")){dataSource} 
-         else{aggregateType}) +
+         else if(aggregateType=="Country"){dataSource}
+         else if(aggregateLevel=="Global"){
+           paste0(aggregateType,
+                  ": ",
+                  as.character(numCountries),
+                  " countries")} else{aggregateType}) +
     theme_minimal()
 }
 
@@ -201,9 +229,6 @@ plot2 <- function(plotType,data,dateStart,dateEnd,trendLine){
   }
 }
 
-test <- EPWT %>% filter(countrycode=="USA")
-plot2("histogram",test,min(test$year),max(test$year),"None")
-
 ######################### Shiny Code ####################################
 
 ## List used to generate plot subtitle
@@ -220,7 +245,7 @@ ui.trendLineList <- list("None" = c("None","None"),
 ## Table which displays the countries within each data source
 ui.CL_CountriesTable <- data.frame(Country = sort(unique(EPWT$country))) %>%
   mutate(EPWT = Country %in% unique(EPWT$country),
-         WIOD = Country %in% unique(WIOD$Name)) %>%
+         WIOD = Country %in% unique(WIOD$country)) %>%
   mutate_all(list(~ str_replace(.,"TRUE","&#10004;"))) %>%
   mutate_all(list(~ str_replace(.,"FALSE","	&#10060;")))
 
@@ -257,9 +282,9 @@ ui <- dashboardPage(
                   
                   airDatepickerInput("CL_dateStart",
                                      label = "Start Year",
-                                     value = "1950-01-02",
+                                     value = "1960-01-02",
                                      maxDate = Sys.Date()-365,
-                                     minDate = "1950-01-02",
+                                     minDate = "1960-01-02",
                                      view = "years", #editing what the popup calendar shows when it opens
                                      minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
                                      dateFormat = "yyyy"
@@ -269,11 +294,16 @@ ui <- dashboardPage(
                                      label = "End Year",
                                      value = Sys.Date()-365,
                                      maxDate = Sys.Date()-365,
-                                     minDate = "1950-01-02",
+                                     minDate = "1960-01-02",
                                      view = "years", #editing what the popup calendar shows when it opens
                                      minView = "years", #making it not possible to go down to a "days" view and pick the wrong date
                                      dateFormat = "yyyy"
                   ),
+                  
+                  selectInput(inputId = "CL_currencyConversion",
+                              label = "Convert current local currencies to current USD using:",
+                              choices = c("Purchasing Power Parities (PPP)" = "PPP",
+                                          "Exchange Rates" = "XR")),
                   
                   uiOutput("CL_conditionalPanel1"),
                   
@@ -364,6 +394,11 @@ ui <- dashboardPage(
                                      dateFormat = "yyyy"
                   ),
                   
+                  selectInput(inputId = "IL_currencyConversion",
+                              label = "Convert current local currencies to current USD using:",
+                              choices = c("Purchasing Power Parities (PPP)" = "PPP",
+                                          "Exchange Rates" = "XR")),
+                  
                   uiOutput("IL_conditionalPanel"),
                   
                   selectInput(inputId = "IL_trendLine", ## Choice of Trend Line for ROP graph
@@ -434,8 +469,8 @@ server <- function(input, output) {
     if((input$CL_tab=="Global" | input$CL_tab=="By Group") & input$CL_dataSource=="EPWT"){
       selectInput(inputId = "CL_aggregate", ## Choose method for aggregating data
                   label = "Method to compute Aggregates:",
-                  choices = c("Use all available data observations" = "All",
-                              "Use only countries with data observations in all selected years" = "LimitCountries"),
+                  choices = c("Use only countries with data observations in all selected years" = "LimitCountries",
+                              "Use all available data observations" = "All"),
                   selectize=FALSE)
     }
   })
@@ -492,31 +527,31 @@ server <- function(input, output) {
   
   ## Global EPWT data - Using all available data observations from each year
   data.CL.EPWT.Global.All <- reactive({
-    EPWT %>% filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
+    data <- currencyConversion(EPWT,input$CL_currencyConversion) %>% 
+      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) 
+    list(data %>%
+           group_by(year) %>% 
+           ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
+           summarise(ROP=100*sum(Profit)/sum(K),
+                     PS=sum(Profit)/sum(Y),
+                     OCR=sum(Y)/sum(K)),
+         length(unique(data$countrycode)))
   })
   
   ## Global EPWT data - Using only countries which have observations in every year in the user's time selection
   data.CL.EPWT.Global.LimitCountries <- reactive({
-    data <- EPWT %>% filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
+    data <- currencyConversion(EPWT,input$CL_currencyConversion) %>% 
+      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
     ## Create a list of countries which have data in all years selected
     validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
-    data %>% filter(countrycode %in% validCountries$countrycode) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
+    data <- data %>% filter(countrycode %in% validCountries$countrycode) 
+    list(data %>%
+           group_by(year) %>% 
+           ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
+           summarise(ROP=100*sum(Profit)/sum(K),
+                     PS=sum(Profit)/sum(Y),
+                     OCR=sum(Y)/sum(K)),
+         length(unique(data$countrycode)))
   })
   
   ## Create list with both All and LimitCountries dfs for EPWT
@@ -527,33 +562,31 @@ server <- function(input, output) {
   
   ## Create WIOD data
   data.CL.WIOD.Global <- reactive({
-    WIOD %>% 
-      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
-      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
-      mutate(OCR=VA/K,
-             PS=CAP/VA,
-             ROP=100*OCR*PS,
-             Kshare=K/sum(K),
-             Yshare=VA/sum(VA)) %>% 
-      group_by(year) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
+    data <- currencyConversion(WIOD,input$CL_currencyConversion) %>%
+      filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) 
+    list(data %>%
+           group_by(year, country) %>% summarize(across(c(K, Profit, Y), sum)) %>%
+           group_by(year) %>%
+           ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
+           summarise(ROP=100*sum(Profit)/sum(K),
+                     PS=sum(Profit)/sum(Y),
+                     OCR=sum(Y)/sum(K)),
+         length(unique(data$countrycode)))
   })
   
   ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
   data.CL.Global <- reactive({
-    list("EPWT" = data.CL.EPWT.Global()[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]],
+    list("EPWT" = data.CL.EPWT.Global()[[if(is.null(input$CL_aggregate)){"LimitCountries"}else{input$CL_aggregate}]],
          "WIOD" = data.CL.WIOD.Global())
   })
   
   # Plot Global ROP
   CL_GlobalPlot1 <- reactive({
-    plot1(data.CL.Global()[[input$CL_dataSource]],
+    plot1(data.CL.Global()[[input$CL_dataSource]][[1]],
+          data.CL.Global()[[input$CL_dataSource]][[2]],
           "Global",
           input$CL_dataSource,
-          if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate},
+          if(is.null(input$CL_aggregate)){"LimitCountries"}else{input$CL_aggregate},
           input$CL_trendLine)
   })
   
@@ -565,9 +598,9 @@ server <- function(input, output) {
   ## Plot Global ROP Decomposition
   CL_GlobalPlot2 <- reactive({
     plot2(input$CL_plot2Type,
-          data.CL.Global()[[input$CL_dataSource]],
-          min(data.CL.Global()[[input$CL_dataSource]]$year),
-          max(data.CL.Global()[[input$CL_dataSource]]$year),
+          data.CL.Global()[[input$CL_dataSource]][[1]],
+          min(data.CL.Global()[[input$CL_dataSource]][[1]]$year),
+          max(data.CL.Global()[[input$CL_dataSource]][[1]]$year),
           input$CL_trendLine)
   })
   
@@ -606,7 +639,7 @@ server <- function(input, output) {
                                  input$CL_dataSource,
                                  ".csv")},
     content = function(file){
-      write.table(data.CL.Global()[[input$CL_dataSource]], file = file, sep = ",", row.names = FALSE)
+      write.table(data.CL.Global()[[input$CL_dataSource]][[1]], file = file, sep = ",", row.names = FALSE)
     }
   )
   
@@ -614,34 +647,34 @@ server <- function(input, output) {
   
   ## Group EPWT data - Using all available data observations from each year
   data.CL.EPWT.Group.All <- reactive({
-    EPWT %>% filter(wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
-                   format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
+    data <- currencyConversion(EPWT,input$CL_currencyConversion) %>% 
+      filter(wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
+             format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) 
+    list(data %>%
+           group_by(year) %>% 
+           ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
+           summarise(ROP=100*sum(Profit)/sum(K),
+                     PS=sum(Profit)/sum(Y),
+                     OCR=sum(Y)/sum(K)),
+         length(unique(data$countrycode)))
   })
   
   ## Group EPWT data - Using only countries which have observations in every year in the user's time selection
   data.CL.EPWT.Group.LimitCountries <- reactive({
     ## Filter for countries which have observations for every year in selected date range
-    data <- EPWT %>% filter(wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
-                           format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
+    data <- currencyConversion(EPWT,input$CL_currencyConversion) %>% 
+      filter(wb_income_group==if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
+             format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"))
     ## Create a list of countries which have data in all years selected
     validCountries <- group_by(data,countrycode) %>% summarise(length=n()) %>% filter(length==max(length))
-    data %>% filter(countrycode %in% validCountries$countrycode) %>%
-      group_by(year) %>% 
-      ## Calculate each observation's share in global capital stock and global output
-      mutate(Kshare=K/sum(K),
-             Yshare=Y/sum(Y)) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
+    data <- data %>% filter(countrycode %in% validCountries$countrycode) 
+    list(data %>%
+           group_by(year) %>% 
+           ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
+           summarise(ROP=100*sum(Profit)/sum(K),
+                     PS=sum(Profit)/sum(Y),
+                     OCR=sum(Y)/sum(K)),
+         length(unique(data$countrycode)))
   })
   
   ## Create list with both All and LimitCountries dfs
@@ -652,15 +685,16 @@ server <- function(input, output) {
   
   ## Create a list with both EPWT and WIOD data for user selection by token input$CL_dataSource
   data.CL.Group <- reactive({
-    data.CL.EPWT.Group()[[if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate}]]
+    data.CL.EPWT.Group()[[if(is.null(input$CL_aggregate)){"LimitCountries"}else{input$CL_aggregate}]]
   })
   
   ## Plot Group ROP
   CL_GroupPlot1 <- reactive({
-    plot1(data.CL.Group(),
+    plot1(data.CL.Group()[[1]],
+          data.CL.Group()[[2]],
           if(is.null(input$CL_group)){"High income: OECD"}else{input$CL_group},
           input$CL_dataSource,
-          if(is.null(input$CL_aggregate)){"All"}else{input$CL_aggregate},
+          if(is.null(input$CL_aggregate)){"LimitCountries"}else{input$CL_aggregate},
           input$CL_trendLine)
   })
   
@@ -672,9 +706,9 @@ server <- function(input, output) {
   ## Plot Global ROP Decomposition
   CL_GroupPlot2 <- reactive({
     plot2(input$CL_plot2Type,
-          data.CL.Group(),
-          min(data.CL.Group()$year),
-          max(data.CL.Group()$year),
+          data.CL.Group()[[1]],
+          min(data.CL.Group()[[1]]$year),
+          max(data.CL.Group()[[1]]$year),
           input$CL_trendLine)
   })
   
@@ -722,7 +756,7 @@ server <- function(input, output) {
                                              ".csv"),
                                       ":"," -")},
     content = function(file){
-      write.table(data.CL.Group(), file = file, sep = ",", row.names = FALSE)
+      write.table(data.CL.Group()[[1]], file = file, sep = ",", row.names = FALSE)
     }
   )
   
@@ -758,11 +792,11 @@ server <- function(input, output) {
   data.CL.WIOD.Country <- reactive({
     WIOD %>% 
       filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y"),
-             Name==if(is.null(input$CL_country)){"United States"}else{input$CL_country}) %>%
-      group_by(year, Name) %>% 
-      summarize(across(c(K, CAP, VA), sum)) %>%
-      mutate(OCR=VA/K,
-             PS=CAP/VA,
+             country==if(is.null(input$CL_country)){"United States"}else{input$CL_country}) %>%
+      group_by(year, country) %>% 
+      summarize(across(c(K, Profit, Y), sum)) %>%
+      mutate(OCR=Y/K,
+             PS=Profit/Y,
              ROP=100*OCR*PS)
   })
   
@@ -775,6 +809,7 @@ server <- function(input, output) {
   ## Plot Group ROP
   CL_CountryPlot1 <- reactive({
     plot1(data.CL.Country()[[input$CL_dataSource]],
+          NA,
           if(is.null(input$CL_country)){"United States"}else{input$CL_country},
           input$CL_dataSource,
           "Country",
@@ -847,7 +882,7 @@ server <- function(input, output) {
   output$CL_WIODcountryText <- renderText({"The selected country is not available in the WIOD data set. The table below displays the countries available within each data source:"})
   output$CL_WIODcountryTable <- renderTable({ui.CL_CountriesTable},sanitize.text.function = identity)
   output$CL_countryMainPanel <- renderUI({
-    if(input$CL_dataSource == "WIOD" & !((if(is.null(input$CL_country)){"United States"}else{input$CL_country}) %in% unique(WIOD$Name))){
+    if(input$CL_dataSource == "WIOD" & !((if(is.null(input$CL_country)){"United States"}else{input$CL_country}) %in% unique(WIOD$country))){
       list(
         textOutput("CL_WIODcountryText"),
         br(),
@@ -877,7 +912,7 @@ server <- function(input, output) {
     } else if(input$IL_tab=="By Country"){
       selectInput(inputId = "IL_country", ## Country
                   label = "Country:",
-                  choices = sort(unique(WIOD$Name)), 
+                  choices = sort(unique(WIOD$country)), 
                   selected = "United States")
     }
   })
@@ -906,25 +941,24 @@ server <- function(input, output) {
   ###################### Global Profit Rate ########################
   
   data.IL.WIOD.Global <- reactive({
-    na.omit(WIOD) %>% 
+    data <- na.omit(currencyConversion(WIOD,input$IL_currencyConversion)) %>% 
       filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
              description == input$IL_industry,
-             K!=0) %>%
-      group_by(year, country) %>% summarize(across(c(K, CAP, VA), sum)) %>%
-      mutate(OCR=VA/K,
-             PS=CAP/VA,
-             ROP=100*OCR*PS,
-             Kshare=K/sum(K),
-             Yshare=VA/sum(VA)) %>% group_by(year) %>%
-      ## Compute weighted average of ROP, PS, and OCR
-      summarise(ROP=sum(ROP*Kshare),
-                PS=sum(PS*Yshare),
-                OCR=sum(OCR*Kshare))
+             K!=0) 
+    list(data %>%
+           group_by(year, country) %>% summarize(across(c(K, Profit, Y), sum)) %>%
+           group_by(year) %>%
+           ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
+           summarise(ROP=100*sum(Profit)/sum(K),
+                     PS=sum(Profit)/sum(Y),
+                     OCR=sum(Y)/sum(K)),
+         length(unique(data$countrycode)))
   })
   
   # Plot Global ROP
   IL_GlobalPlot1 <- reactive({
-    plot1(data.IL.WIOD.Global(),
+    plot1(data.IL.WIOD.Global()[[1]],
+          data.IL.WIOD.Global()[[2]],
           "Global",
           "WIOD",
           input$IL_industry,
@@ -939,9 +973,9 @@ server <- function(input, output) {
   ## Plot Global ROP Decomposition
   IL_GlobalPlot2 <- reactive({
     plot2(input$IL_plot2Type,
-          data.IL.WIOD.Global(),
-          min(data.IL.WIOD.Global()$year),
-          max(data.IL.WIOD.Global()$year),
+          data.IL.WIOD.Global()[[1]],
+          min(data.IL.WIOD.Global()[[1]]$year),
+          max(data.IL.WIOD.Global()[[1]]$year),
           input$IL_trendLine)
   })
   
@@ -980,7 +1014,7 @@ server <- function(input, output) {
                                  input$IL_industry,
                                  ".csv")},
     content = function(file){
-      write.table(data.IL.WIOD.Global(), file = file, sep = ",", row.names = FALSE)
+      write.table(data.IL.WIOD.Global()[[1]], file = file, sep = ",", row.names = FALSE)
     }
   )
   
@@ -991,16 +1025,14 @@ server <- function(input, output) {
       filter(format(input$IL_dateStart,format="%Y") <= year & year <= format(input$IL_dateEnd,format="%Y"),
              description == input$IL_industry,
              K!=0,
-             Name == if(is.null(input$IL_country)){"United States"}else{input$IL_country}) %>%
-      mutate(OCR=VA/K,
-             PS=CAP/VA,
-             ROP=100*OCR*PS) %>%
+             country == if(is.null(input$IL_country)){"United States"}else{input$IL_country}) %>%
       select(year,OCR,PS,ROP)
   })
   
   # Plot Country ROP
   IL_CountryPlot1 <- reactive({
     plot1(data.IL.WIOD.Country(),
+          NA,
           if(is.null(input$IL_country)){"United States"}else{input$IL_country},
           "WIOD",
           input$IL_industry,
