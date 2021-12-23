@@ -16,12 +16,6 @@ rm(list = ls())
 ###################### Import Exchange Rates, PPP Indices, & Income Group Classes #############
 
 ## Exchange rate data
-# XR <- read_excel("Nominal_Exchange_Rates.xls",
-#                  sheet = "Data",
-#                  skip = 3) %>%
-#   pivot_longer("1960":"2020","year", values_to="value") %>%
-#   select(`Country Code`, year, value) %>%
-#   rename(countrycode = `Country Code`, XR = value)
 XR <- read.csv("Exchange_Rates_OECD.csv", fileEncoding = 'UTF-8-BOM') %>% 
   rename(countrycode=LOCATION,year=TIME,XR=Value) %>%
   select(countrycode,year,XR) %>%
@@ -59,37 +53,10 @@ EPWT <- merge(EPWT, class, all.x=TRUE) %>%
 
 ### List of variables and description
 
-## GO	Gross output by industry at current basic prices (in millions of national currency)
-## II	Intermediate inputs at current purchasers' prices (in millions of national currency)
 ## VA	Gross value added at current basic prices (in millions of national currency)
-## EMP	Number of persons engaged (thousands)
-## EMPE	Number of employees (thousands)
-## H_EMPE	Total hours worked by employees (millions)
-## COMP	Compensation of employees (in millions of national currency)
 ## LAB	Labour compensation (in millions of national currency)
 ## CAP	Capital compensation (in millions of national currency)
 ## K	Nominal capital stock (in millions of national currency)
-
-### Prices	
-## GO_PI	Price levels gross output, 2010=100
-## II_PI	Price levels of intermediate inputs, 2010=100
-## VA_PI	Price levels of gross value added, 2010=100
-
-### Volumes	
-## GO_QI	Gross output, volume indices, 2010=100
-## II_QI	Intermediate inputs, volume indices, 2010=100
-## VA_QI	Gross value added, volume indices, 2010=100
-
-
-### OUR VARIABLES:
-### Variable construction
-
-## 2 measures of surplus value: CAP and (VA-LAB)
-### Rate of profit_1= CAP/K = (Output-Capital ratio)(Profit share)=(VA/K)*(CAP/VA)
-### Rate of profit_2= (VA-LAB)/K
-
-### Rate of surplus value= CAP/LAB
-### Organic composition of capital= K/LAB
 
 ## Import Socioeconomic accounts, include extended country names from Notes sheet
 WIOD <- merge(read_excel("WIOD_SEA_Nov16.xlsx", 
@@ -162,7 +129,7 @@ currencyConversion <- function(data, conversionFactor){
 ## Function which creates a graph for rate of profit (Plot 1)
 plot1 <- function(data, numCountries, aggregateLevel, dataSource, aggregateType, trendLine){
   ggplot(data=data,
-         aes(x=as.Date(as.character(year), "%Y"), y=ROP)) + 
+         aes(x=as.numeric(as.character(year), "%Y"), y=ROP)) + 
     geom_line() + 
     {if(trendLine!="None")
       geom_smooth(method=ui.trendLineList[[trendLine]][1],
@@ -217,7 +184,7 @@ plot2 <- function(plotType,data,dateStart,dateEnd,trendLine){
              gather("Measure",
                     "Value",
                     -year),
-           aes(x=as.Date(as.character(year), "%Y"), y=Value, color=Measure)) +
+           aes(x=as.numeric(as.character(year), "%Y"), y=Value, color=Measure)) +
       geom_line() +
       {if(trendLine!="None")
         geom_smooth(method=ui.trendLineList[[trendLine]][1],
@@ -569,7 +536,6 @@ server <- function(input, output) {
     data <- currencyConversion(WIOD,input$CL_currencyConversion) %>%
       filter(format(input$CL_dateStart,format="%Y") <= year & year <= format(input$CL_dateEnd,format="%Y")) 
     list(data %>%
-           group_by(year, country) %>% summarize(across(c(K, Profit, Y), sum)) %>%
            group_by(year) %>%
            ## Compute ROP, PS, OCR with global sums of profits, capital stocks, and value added
            summarise(ROP=100*sum(Profit)/sum(K),
