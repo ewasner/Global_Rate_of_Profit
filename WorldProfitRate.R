@@ -472,9 +472,9 @@ server <- function(input, output) {
   
   ## Download Handler for downloading explanatory pdf
   output$CL_downloadExplanationFile <- downloadHandler(
-    filename = "world-profitability.pdf",
+    filename = "global-rop.pdf",
     content = function(file) {
-      file.copy("world-profitability.pdf", file)
+      file.copy("global-rop.pdf", file)
     })
   
   ## Text to display at bottom of page
@@ -900,9 +900,9 @@ server <- function(input, output) {
   
   ## Download Handler for downloading explanatory pdf
   output$IL_downloadExplanationFile <- downloadHandler(
-    filename = "world-profitability.pdf",
+    filename = "global-rop.pdf",
     content = function(file) {
-      file.copy("world-profitability.pdf", file)
+      file.copy("global-rop.pdf", file)
     })
   
   ## Shiny cannot use the same output multiple times --> therefore must define three separate outputs to reuse text
