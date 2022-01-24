@@ -38,10 +38,14 @@ EPWT <- read_excel("EPWT 7.0 Preliminary.xlsx",
 
 ## Remove na values from EPWT, select relevant variables, and
 ## calculate Profit share (PS), Output-Capital Ratio (OCR), and Rate of Profit (ROP)
-EPWT <- na.omit(EPWT %>% select(countrycode, country, year, LabShare, rhonatcur, Knatcur, XGDPnatcur) %>%
+EPWT <- na.omit(EPWT %>% select(countrycode, country, delta, year, LabShare, rhonatcur, Knatcur, XGDPnatcur) %>%
                  filter(year > 1949)) %>%
   rename(Y=XGDPnatcur, K=Knatcur, OCR=rhonatcur) %>%
-  mutate(PS = 1-LabShare, Profit=PS*Y, ROP = 100 * PS * OCR)
+  mutate(PS = 1 - LabShare, 
+         Profit = PS * Y - delta * K, 
+         ROP = 100 * Profit / K,
+         PS = PS - delta * K / Y,
+         Y = Y - delta * K)
 
 ## Merge EPWT with WB income group categories, PPPs, and exchange rates (XR)
 EPWT <- merge(EPWT, class, all.x=TRUE) %>%
